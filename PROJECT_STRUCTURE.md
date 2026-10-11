@@ -176,7 +176,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                              abrir con la app del sistema, listado de directorio,
         │   │                              plantillas de scripts). Usa GestorDeArchivos internamente.
         │   ├── FileSelection.h          ← estado de navegación compartido entre vistas
-        │   ├── FileSystemWatcher.h/.cpp ← vigilancia de cambios externos (inotify)
+        │   ├── FileSystemWatcher.h/.cpp ← vigilancia de cambios externos (inotify
+        │   │                              en Linux; polling con mtime en el resto)
         │   └── Proceso.h/.cpp           ← runner de procesos SIN shell (argv propio:
         │                                  CreateProcessW / fork+execvp, log por handles/fd,
         │                                  cwd, entorno extra; única vía a `cmd.exe` es la
@@ -767,7 +768,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
 `-DFUNSHI_JAVA=ON`; cinco de ellos enlazan `funshi_engine` y requieren
 `BUILD_ENGINE=ON`, el resto compila también con `BUILD_ENGINE=OFF`):
 
-- `filemanager-tests` (190; 186 en Windows): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
+- `filemanager-tests` (190 en Linux; 181 en Windows con MinGW, 183 con MSVC): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
   contra un proyecto temporal, sin ventanas ni pila gráfica; incluye el arrastre
   con invalidación explícita de caché del grid en carpeta origen y destino, el
   renombre por click derecho de las vistas del explorador y la creación de
@@ -1078,7 +1079,9 @@ GameScene → coordina todos los subsistemas del frame
 
 - `tests/FileManagerTests.cpp`: construcción y re-resolución del árbol de archivos,
   operaciones de dominio (crear, renombrar, copiar, eliminar archivo y carpeta,
-  búsqueda) y `FileSystemWatcher` (detección de cambios externos, en Linux via inotify).
+  búsqueda) y `FileSystemWatcher` (detección de cambios externos: inotify en
+  Linux; en el resto, el polling de mtime con su semilla en el ctor y el
+  intervalo inyectable para probarlo).
 - `tests/EditorConfigTests.cpp`: round-trip del JSON (general, por proyecto y
   legacy `menu/*`), tolerancia a archivos ausentes/corruptos/parciales,
   escritura atómica (sin temporales colgados) y guardado diferido
