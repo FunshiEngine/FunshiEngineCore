@@ -86,10 +86,13 @@ void BulletPhysicsAdapter::stepSimulation(float deltaTime) {
                 } else if (body->getRigidBody() == cuerpoB) {
                     bodyB = body;
                 }
-                if (body->getRigidBody() == cuerpoA &&
+                // Un sensor no es suelo: atraviesa lo que detecta y no debe
+                // habilitar saltos al cuerpo que lo toca.
+                if (!body->esSensor() && body->getRigidBody() == cuerpoA &&
                     normalHaciaA.y() > 0.5f) {
                     body->actualizarEstadoSuelo(true);
-                } else if (body->getRigidBody() == cuerpoB &&
+                } else if (!body->esSensor() &&
+                           body->getRigidBody() == cuerpoB &&
                            normalHaciaA.y() < -0.5f) {
                     body->actualizarEstadoSuelo(true);
                 }

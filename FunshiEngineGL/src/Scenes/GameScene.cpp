@@ -108,6 +108,10 @@ GameScene::GameScene(GUIManager* manager)
                               [this]() { return getDimensionProyecto(); });
         managerGUI->setAudioEngine(audioEngine.get());
     }
+    // El controlador restringe los cuerpos al plano cuando el proyecto es 2D;
+    // lee la dimension viva de la escena por este proveedor.
+    editorController->setDimensionProvider(
+        [this]() { return getDimensionProyecto(); });
     asegurarGrilla();
     configurarResolverObjetosScripts();
     if (managerGUI) {

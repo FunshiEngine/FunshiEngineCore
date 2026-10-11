@@ -51,6 +51,9 @@ private:
     // se fija con linearFactor/angularFactor en cero.
     bool freezePos[3] = {false, false, false};
     bool freezeRot[3] = {false, false, false};
+    // Sensor/trigger: el cuerpo detecta contactos (se reportan como eventos de
+    // colision) pero no genera respuesta fisica: el otro cuerpo lo atraviesa.
+    bool sensor = false;
     // Ultima gravedad del mundo conocida (la empuja el backend al registrar
     // el cuerpo y al cambiar la gravedad global). No se serializa: el mundo
     // la repone al cargar la escena.
@@ -102,6 +105,14 @@ public:
     void fijarFreezePosicion(bool x, bool y, bool z);
     bool rotacionCongelada(int eje) const;
     void fijarFreezeRotacion(bool x, bool y, bool z);
+    // Modo 2D: restringe el cuerpo al plano XY reutilizando el freeze por ejes
+    // (posicion Z y rotacion X/Y bloqueadas). Aditivo: no borra los freeze ya
+    // fijados en los demas ejes. Lo aplica el editor al registrar el cuerpo en
+    // un proyecto 2D.
+    void fijarRestricciones2D();
+    // Sensor/trigger (ver campo): detecta sin respuesta fisica.
+    bool esSensor() const { return sensor; }
+    void fijarSensor(bool esSensor);
     // La llama el backend con la gravedad vigente del mundo (al registrar el
     // cuerpo y al cambiar la gravedad global). Cachea y aplica.
     void aplicarGravedadMundo(float x, float y, float z);

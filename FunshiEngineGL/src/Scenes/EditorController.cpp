@@ -53,6 +53,16 @@ void EditorController::setAssetManager(AssetManager* value) noexcept {
     assets = value;
 }
 
+void EditorController::setDimensionProvider(
+    std::function<DimensionProyecto()> provider) {
+    dimensionProvider = std::move(provider);
+}
+
+bool EditorController::proyectoEs2D() const {
+    return dimensionProvider &&
+           dimensionProvider() == DimensionProyecto::DosD;
+}
+
 GameObject* EditorController::createGameObject(std::unique_ptr<GameObject> object,
                                                GameObject* parent) {
     // Propagar el AssetManager a los modelos creados desde la GUI: el objeto
@@ -266,6 +276,10 @@ void EditorController::refreshRigidBody(GameObject* object) {
     // hace que getCollisionShape() la reconstruya con el valor actual.
     if (Collider* collider = object->getComponent<Collider>())
         collider->invalidateCollisionShape();
+    // En un proyecto 2D el cuerpo queda restringido al plano XY (freeze de la
+    // posicion Z y de las rotaciones X/Y) reutilizando el freeze por ejes; se
+    // aplica antes de recrear el cuerpo para que herede las restricciones.
+    if (proyectoEs2D()) body->fijarRestricciones2D();
     // createRigidBody() construye un btRigidBody NUEVO: si el anterior queda
     // registrado en el mundo tendriamos DOS cuerpos en la misma posicion
     // (autocolision real del objeto contra su gemelo invisible).
@@ -315,6 +329,8 @@ bool EditorController::addComponent(GameObject* object,
     if (!scene || !scene->contains(object) || !component) return false;
     RigidBody* body = dynamic_cast<RigidBody*>(component.get());
     object->addComponent(std::move(component));
+    // En un proyecto 2D el cuerpo nace restringido al plano XY.
+    if (body && proyectoEs2D()) body->fijarRestricciones2D();
     if (physics && body) physics->addRigidBody(body);
     if (events)
         events->publish({SceneEventType::ComponentStructureChanged, object, nullptr});

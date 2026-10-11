@@ -148,12 +148,57 @@ void filtroDimensiones() {
     CHECK(dimensionesIncluyen(sprite->dimensiones, DimensionProyecto::DosD),
           "SpriteRenderer se ofrece en 2D");
 
+    // Los colisionadores de volumen (esfera/cubo) y el RigidBody se reutilizan
+    // en 2D restringiendo el cuerpo al plano; la malla sigue siendo solo 3D.
     const DescriptorComponente* collider = cat.buscar("EsfereCollider");
     CHECK(collider != nullptr, "EsfereCollider esta en el catalogo");
-    CHECK(!dimensionesIncluyen(collider->dimensiones, DimensionProyecto::DosD),
-          "los colisionadores 3D no se ofrecen en 2D");
+    CHECK(dimensionesIncluyen(collider->dimensiones, DimensionProyecto::DosD),
+          "el colisionador de esfera se ofrece en 2D");
     CHECK(collider->submenu == "Add Collider",
           "los colisionadores se agrupan en su submenu");
+
+    const DescriptorComponente* cubo = cat.buscar("CubeCollider");
+    CHECK(cubo != nullptr &&
+              dimensionesIncluyen(cubo->dimensiones, DimensionProyecto::DosD),
+          "el colisionador de cubo se ofrece en 2D");
+
+    const DescriptorComponente* malla = cat.buscar("MallaCollider");
+    CHECK(malla != nullptr &&
+              !dimensionesIncluyen(malla->dimensiones, DimensionProyecto::DosD),
+          "el colisionador de malla sigue siendo solo 3D");
+
+    const DescriptorComponente* body = cat.buscar("RigidBody");
+    CHECK(body != nullptr &&
+              dimensionesIncluyen(body->dimensiones, DimensionProyecto::DosD),
+          "el RigidBody se ofrece en 2D");
+}
+
+// El modo 2D reutiliza el freeze por ejes del RigidBody: bloquea la posicion Z
+// y las rotaciones X/Y sin pisar los freeze que el usuario ya haya fijado.
+void restricciones2D() {
+    auto obj = GameObjectFactory::createSimpleObject(nullptr);
+    obj->addComponent(ComponentFactory::create("EsfereCollider", *obj));
+    obj->addComponent(ComponentFactory::create("RigidBody", *obj));
+    RigidBody* rb = obj->getComponent<RigidBody>();
+    CHECK(rb != nullptr, "el objeto tiene RigidBody");
+
+    // Freeze propio del usuario en un eje fuera del plano: debe sobrevivir.
+    rb->fijarFreezePosicion(true, false, false);
+    rb->fijarRestricciones2D();
+
+    CHECK(rb->posicionCongelada(2), "2D bloquea la posicion Z");
+    CHECK(rb->rotacionCongelada(0) && rb->rotacionCongelada(1),
+          "2D bloquea las rotaciones X e Y");
+    CHECK(rb->posicionCongelada(0),
+          "2D conserva el freeze de posicion X que fijo el usuario");
+    CHECK(!rb->rotacionCongelada(2), "2D deja libre la rotacion Z");
+
+    // Un cuerpo nace sin ser sensor; el flag se puede alternar.
+    CHECK(!rb->esSensor(), "un RigidBody no es sensor por defecto");
+    rb->fijarSensor(true);
+    CHECK(rb->esSensor(), "el RigidBody queda como sensor");
+    rb->fijarSensor(false);
+    CHECK(!rb->esSensor(), "el RigidBody deja de ser sensor");
 }
 
 // El requisito del catalogo coincide con el del creador: el Transform que
@@ -250,6 +295,7 @@ int main() {
     factoryCreaDesdeCatalogo();
     filtroDimensiones();
     requisitos();
+    restricciones2D();
     animador2D();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total

@@ -2089,6 +2089,7 @@ void rigidBodySerializaPropiedadesNuevas() {
     cuerpo.fijarFriccion(0.9f);
     cuerpo.fijarFreezePosicion(true, false, false);
     cuerpo.fijarFreezeRotacion(false, false, true);
+    cuerpo.fijarSensor(true);
     {
         std::ofstream salida(archivo, std::ios::binary);
         cuerpo.saveComponent(&salida);
@@ -2100,7 +2101,7 @@ void rigidBodySerializaPropiedadesNuevas() {
         std::ifstream entrada(archivo, std::ios::binary);
         recuperado.loadComponent(&entrada);
         CHECK(static_cast<bool>(entrada),
-              "el formato v2 carga sin error");
+              "el formato v3 carga sin error");
     }
     CHECK(recuperado.masa() == 2.0f, "la masa se conserva al serializar");
     CHECK(!recuperado.usaGravedad(), "el uso de gravedad se conserva");
@@ -2116,6 +2117,47 @@ void rigidBodySerializaPropiedadesNuevas() {
               !recuperado.rotacionCongelada(1) &&
               recuperado.rotacionCongelada(2),
           "el freeze de rotacion se conserva");
+    CHECK(recuperado.esSensor(), "el flag de sensor se conserva al serializar");
+
+    // Compatibilidad hacia atras: blob v2 escrito a mano (magia + version 2
+    // + activo + masa + pos + rot + gravedad + friccion + freeze) carga con
+    // el sensor en falso.
+    const fs::path archivoV2 = carpetaDir.ruta() / "rigidbody-v2.bin";
+    {
+        std::ofstream salida(archivoV2, std::ios::binary);
+        const std::uint32_t magia = 0x32444252;
+        const std::uint32_t version = 2;
+        const bool activo = true;
+        const float masa = 4.0f;
+        const float pos[3] = {0.0f, 0.0f, 0.0f};
+        const float rot[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+        const bool usarGravedad = true;
+        const float escala = 1.0f;
+        const float friccion = 0.5f;
+        const bool freezePos[3] = {false, false, false};
+        const bool freezeRot[3] = {false, false, false};
+        salida.write(reinterpret_cast<const char*>(&magia), sizeof(magia));
+        salida.write(reinterpret_cast<const char*>(&version), sizeof(version));
+        salida.write(reinterpret_cast<const char*>(&activo), sizeof(activo));
+        salida.write(reinterpret_cast<const char*>(&masa), sizeof(masa));
+        salida.write(reinterpret_cast<const char*>(pos), sizeof(pos));
+        salida.write(reinterpret_cast<const char*>(&rot), sizeof(rot));
+        salida.write(reinterpret_cast<const char*>(&usarGravedad),
+                     sizeof(usarGravedad));
+        salida.write(reinterpret_cast<const char*>(&escala), sizeof(escala));
+        salida.write(reinterpret_cast<const char*>(&friccion), sizeof(friccion));
+        salida.write(reinterpret_cast<const char*>(freezePos), sizeof(freezePos));
+        salida.write(reinterpret_cast<const char*>(freezeRot), sizeof(freezeRot));
+    }
+    Transform transformV2;
+    EsfereCollider colliderV2(1.0f, &transformV2);
+    RigidBody cuerpoV2(&colliderV2, 1.0f);
+    {
+        std::ifstream entrada(archivoV2, std::ios::binary);
+        cuerpoV2.loadComponent(&entrada);
+        CHECK(static_cast<bool>(entrada), "el formato v2 sigue cargando");
+    }
+    CHECK(!cuerpoV2.esSensor(), "una escena v2 no trae sensores");
 
     // Compatibilidad hacia atras: blob v1 escrito a mano (magia + version 1
     // + activo + masa + pos + rot) carga con los valores por defecto.
@@ -2149,6 +2191,98 @@ void rigidBodySerializaPropiedadesNuevas() {
               !cuerpoV1.posicionCongelada(0) &&
               !cuerpoV1.rotacionCongelada(0),
           "v1 toma gravedad, friccion y freeze por defecto");
+}
+
+// Un cuerpo sensor detecta el contacto (evento de inicio) pero no genera
+// respuesta fisica: el otro cuerpo lo atraviesa. Se compara contra un
+// colisionador solido como bloque de control (una sola variable: el flag).
+void sensorDetectaSinRespuestaYPlano2D() {
+    auto ensayar = [](bool comoSensor, float& posXFinal, int& eventosInicio) {
+        GameObject sensor;
+        GameObject movil;
+        Transform* tSensor = sensor.getComponent<Transform>();
+        Transform* tMovil = movil.getComponent<Transform>();
+        tSensor->setTranslatef(0.0f, 10.0f, 0.0f);
+        tMovil->setTranslatef(0.1f, 10.0f, 0.0f);
+
+        auto colSensor = std::make_unique<EsfereCollider>(1.0f, tSensor, &sensor);
+        Collider* colSensorPtr = colSensor.get();
+        sensor.addComponent(std::move(colSensor));
+        auto bodySensor = std::make_unique<RigidBody>(colSensorPtr, 0.0f);
+        RigidBody* bodySensorPtr = bodySensor.get();
+        if (comoSensor) bodySensorPtr->fijarSensor(true);
+        sensor.addComponent(std::move(bodySensor));
+
+        auto colMovil = std::make_unique<EsfereCollider>(1.0f, tMovil, &movil);
+        Collider* colMovilPtr = colMovil.get();
+        movil.addComponent(std::move(colMovil));
+        auto bodyMovil = std::make_unique<RigidBody>(colMovilPtr, 1.0f);
+        RigidBody* bodyMovilPtr = bodyMovil.get();
+        bodyMovilPtr->fijarUsoGravedad(false);
+        movil.addComponent(std::move(bodyMovil));
+
+        BulletPhysicsAdapter fisica;
+        fisica.addRigidBody(bodySensorPtr);
+        fisica.addRigidBody(bodyMovilPtr);
+
+        eventosInicio = 0;
+        for (int i = 0; i < 30; ++i) {
+            fisica.stepSimulation(1.0f / 60.0f);
+            for (const EventoContacto& evento :
+                 fisica.tomarEventosContacto()) {
+                if (evento.tipo != TipoContacto::Inicio) continue;
+                if ((evento.colliderA == colSensorPtr &&
+                     evento.colliderB == colMovilPtr) ||
+                    (evento.colliderA == colMovilPtr &&
+                     evento.colliderB == colSensorPtr))
+                    ++eventosInicio;
+            }
+        }
+        posXFinal =
+            bodyMovilPtr->getRigidBody()->getWorldTransform().getOrigin().x();
+
+        fisica.removeRigidBody(bodySensorPtr);
+        fisica.removeRigidBody(bodyMovilPtr);
+    };
+
+    float xSensor = 0.0f;
+    float xSolido = 0.0f;
+    int eventosSensor = 0;
+    int eventosSolido = 0;
+    ensayar(true, xSensor, eventosSensor);
+    ensayar(false, xSolido, eventosSolido);
+
+    CHECK(eventosSensor > 0, "el sensor detecta el contacto que atraviesa");
+    CHECK(eventosSolido > 0, "el colisionador solido tambien detecta el contacto");
+    CHECK(xSensor < xSolido,
+          "el sensor no empuja: el movil lo atraviesa; el solido lo frena");
+
+    // El flag del sensor y las restricciones 2D son propiedades del RigidBody
+    // que deben llegar a la instancia de Bullet.
+    GameObject objeto;
+    Transform* t = objeto.getComponent<Transform>();
+    auto col = std::make_unique<EsfereCollider>(1.0f, t, &objeto);
+    Collider* colPtr = col.get();
+    objeto.addComponent(std::move(col));
+    auto cuerpo = std::make_unique<RigidBody>(colPtr, 1.0f);
+    RigidBody* cuerpoPtr = cuerpo.get();
+    objeto.addComponent(std::move(cuerpo));
+
+    CHECK(!cuerpoPtr->esSensor() &&
+              cuerpoPtr->getRigidBody()->hasContactResponse(),
+          "un cuerpo normal responde al contacto");
+    cuerpoPtr->fijarSensor(true);
+    CHECK(!cuerpoPtr->getRigidBody()->hasContactResponse(),
+          "el flag de sensor llega a Bullet (sin respuesta de contacto)");
+
+    cuerpoPtr->fijarRestricciones2D();
+    const btVector3 factorLineal =
+        cuerpoPtr->getRigidBody()->getLinearFactor();
+    const btVector3 factorAngular =
+        cuerpoPtr->getRigidBody()->getAngularFactor();
+    CHECK(factorLineal.z() == 0.0f && factorAngular.x() == 0.0f &&
+              factorAngular.y() == 0.0f,
+          "el modo 2D llega al linear/angular factor de Bullet");
 }
 
 void gestionDeObjetosDesdeScripts() {
@@ -2460,6 +2594,7 @@ int main() {
     busquedaDeObjetosPorNombreIdYEtiqueta();
     propiedadesFisicasDesdeScripts();
     rigidBodySerializaPropiedadesNuevas();
+    sensorDetectaSinRespuestaYPlano2D();
     gestionDeObjetosDesdeScripts();
     siembraPorDimension();
     proyeccionDeCamara();
