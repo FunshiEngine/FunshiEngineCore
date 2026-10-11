@@ -176,6 +176,56 @@ bool ProjectManager::crearProyecto(const std::string& nombre) {
     return crearEstructuraProyecto(nombre);
 }
 
+bool ProjectManager::crearProyectoNuevo(const std::string& nombre,
+                                        std::error_code& error) {
+    namespace fs = std::filesystem;
+    error.clear();
+    if (!ProjectPaths::esNombreValido(nombre) || nombre == "." || nombre == "..") {
+        error = std::make_error_code(std::errc::invalid_argument);
+        return false;
+    }
+
+    const fs::path raiz(ProjectPaths::directorioProyects());
+    const fs::path proyecto(ProjectPaths::directorioProyecto(nombre));
+    fs::create_directories(raiz, error);
+    if (error) return false;
+
+    // create_directory reserva el nombre de forma atomica: no entra a reparar ni
+    // migrar el contenido si otro proyecto ya ocupa esa ruta.
+    const bool reservado = fs::create_directory(proyecto, error);
+    if (error || !reservado) {
+        if (!error) error = std::make_error_code(std::errc::file_exists);
+        return false;
+    }
+
+    const std::vector<fs::path> directorios = {
+        fs::path(ProjectPaths::directorioMemory(nombre)) / "Binarios" / "Scene",
+        fs::path(ProjectPaths::directorioSrc(nombre)),
+        fs::path(ProjectPaths::directorioSonidos(nombre)),
+        fs::path(ProjectPaths::directorioScripts(nombre)),
+        fs::path(ProjectPaths::directorioInterfaces(nombre))};
+    std::vector<fs::path> creados;
+    for (const fs::path& directorio : directorios) {
+        error.clear();
+        if (!fs::create_directories(directorio, error) && error) {
+            // El rollback solo retira directorios vacios, nunca contenido ajeno.
+            for (auto it = creados.rbegin(); it != creados.rend(); ++it) {
+                std::error_code ignorado;
+                fs::remove(*it, ignorado);
+            }
+            std::error_code ignorado;
+            fs::remove(proyecto, ignorado);
+            return false;
+        }
+        fs::path actual = directorio;
+        while (actual != proyecto && actual.has_relative_path()) {
+            creados.push_back(actual);
+            actual = actual.parent_path();
+        }
+    }
+    return true;
+}
+
 bool ProjectManager::renombrarProyecto(const std::string& viejo, const std::string& nuevo) {
     if (!ProjectPaths::esNombreValido(viejo) || !ProjectPaths::esNombreValido(nuevo) || viejo == nuevo)
         return false;

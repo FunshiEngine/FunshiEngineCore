@@ -65,6 +65,7 @@ Name: "desktopicon"; Description: "Crear acceso directo en el escritorio"; Group
 
 [Files]
 Source: "{#MiExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "FunshiCLI.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Imagenes\*"; DestDir: "{app}\Imagenes"; Flags: ignoreversion recursesubdirs
 Source: "include\*"; DestDir: "{app}\include"; Flags: ignoreversion recursesubdirs

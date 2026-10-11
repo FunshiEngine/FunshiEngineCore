@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SpriteRenderer.h"
+#include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -58,6 +59,8 @@ bool SpriteRenderer::inicializar() {
             ShaderProgram::fromSource(kSpriteVertexShader,
                                       kSpriteFragmentShader));
     } catch (const std::exception& e) {
+        registrarExcepcionDiagnostica("Rendering/SpriteRenderer", e,
+                                      NivelDiagnostico::Error);
         std::cerr << "[SpriteRenderer] Shader de sprites no disponible: "
                   << e.what() << '\n';
         shaderFallado_ = true;
@@ -101,6 +104,8 @@ bool SpriteRenderer::enlazarTextura(const std::string& path) {
         return true;
     } catch (const std::exception& e) {
         texturasFallidas_.insert(path); // no reintentar por frame
+        registrarExcepcionDiagnostica("Rendering/SpriteRenderer", e,
+                                      NivelDiagnostico::Advertencia);
         std::cerr << "[SpriteRenderer] Textura '" << path << "': " << e.what()
                   << '\n';
         return false;

@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "ConfigPersistence.h"
+#include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <nlohmann/json.hpp>
 #include <cmath>
@@ -67,7 +68,16 @@ nlohmann::json leerJson(const std::string& ruta) {
     nlohmann::json j;
     try {
         in >> j;
+    } catch (const std::exception& e) {
+        registrarExcepcionDiagnostica(
+            "Configuracion/ConfigPersistence", e,
+            NivelDiagnostico::Advertencia, "configuracion:" + ruta);
+        return nlohmann::json::object();
     } catch (...) {
+        registrarFalloDiagnostico(
+            "Configuracion/ConfigPersistence", "error_desconocido",
+            "No se pudo interpretar la configuracion " + ruta,
+            NivelDiagnostico::Advertencia);
         return nlohmann::json::object();
     }
     return j.is_object() ? j : nlohmann::json::object();

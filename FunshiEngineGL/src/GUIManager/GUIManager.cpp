@@ -18,6 +18,7 @@
 */
 #include "GUIManager.h"
 #include "../Configuracion/EditorConfig.h"
+#include "../Configuracion/ProjectPaths.h"
 #include "../Objetos/Modelos3D.h"
 #include "../Scenes/EditorController.h"
 #include "../Scenes/SceneRegistry.h"
@@ -48,6 +49,7 @@ GUIManager::GUIManager(GLFWwindow* window)
     iconosGUI->init();
     menuBarGUI->setIconosGUI(iconosGUI.get());
     statusBarGUI = std::make_unique<StatusBarInterface>(true);
+    terminalGUI = std::make_unique<TerminalInterface>(true);
     // Ventanas del creador de interfaces: arrancan ocultas; se alternan desde
     // el menu "Ventanas" o al crear una interfaz (se persisten por proyecto).
     creadorInterfacesGUI = std::make_unique<CreadorDeInterfaces>(false);
@@ -146,7 +148,7 @@ std::vector<GeneralUserInterface*> GUIManager::ventanasPersistentes() const {
     // fuera. El resto se persiste por su WindowName.
     return {selecteableGUI.get(), menuBarGUI.get(), treeFilesGUI.get(),
             contentOfThisFolder.get(), dockSpaceGUI.get(), statusBarGUI.get(),
-            creadorInterfacesGUI.get(), canvasGUI.get()};
+            terminalGUI.get(), creadorInterfacesGUI.get(), canvasGUI.get()};
 }
 
 std::map<std::string, bool> GUIManager::obtenerEstadosVentanas() const {
@@ -175,6 +177,9 @@ void GUIManager::configurarProyecto(const std::string& nombreProyecto) {
     EditorConfig::asegurarEstructuraProyecto(nombreProyecto);
     const std::string path = EditorConfig::directorioSrc(nombreProyecto);
     const std::string rootName = EditorConfig::nombreRaizSrc(nombreProyecto);
+    if (terminalGUI)
+        terminalGUI->setDirectorioProyecto(
+            ProjectPaths::directorioProyecto(nombreProyecto));
     if (fileManager) {
         fileManager->setProyecto(path, rootName);
     }

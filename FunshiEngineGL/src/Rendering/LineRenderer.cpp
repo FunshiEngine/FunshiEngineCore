@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "LineRenderer.h"
+#include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <algorithm>
 #include <cmath>
@@ -73,6 +74,8 @@ bool LineRenderer::inicializar() {
         shader_ = std::make_unique<ShaderProgram>(
             ShaderProgram::fromSource(kLineVertexShader, kLineFragmentShader));
     } catch (const std::exception& e) {
+        registrarExcepcionDiagnostica("Rendering/LineRenderer", e,
+                                      NivelDiagnostico::Error);
         std::cerr << "[LineRenderer] Shader de lineas no disponible: " << e.what()
                   << '\n';
         shader_.reset();

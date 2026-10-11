@@ -34,6 +34,8 @@ por arrastre y escribir scripts con la API exacta que expone el motor.
 14. [Scripting C++: referencia completa](#14-scripting-c-referencia-completa)
 15. [Scripting Java (JNI)](#15-scripting-java-jni)
 16. [Hot reload y depuración](#16-hot-reload-y-depuración)
+17. [Funshi CLI](#17-funshi-cli)
+18. [Terminal integrada](#18-terminal-integrada)
 
 ---
 
@@ -1344,8 +1346,133 @@ public void actualizar(long objeto, double deltaTime) {
 - **Errores de carga/compilacion C++** aparecen en la ventana Estado y en el log
   del motor (`logs/FunshiEngineGL_*.log` en la carpeta de datos, seccion 2), no
   en el panel del componente; corregi el fuente y guardalo de nuevo (no hace
-  no hace falta terminar la simulacion).
+  falta terminar la simulacion).
 - Al cerrar la aplicacion los comportamientos se descargan sin disparar
   `onStop`; los backends (incluida la JVM) se apagan despues.
+
+---
+
+## 17. Funshi CLI
+
+Funshi CLI permite ejecutar operaciones del motor con solicitudes JSON sin abrir
+el editor. En esta versión ofrece ayuda, versión, creación de proyectos y
+consulta del registro de diagnósticos. La interfaz está pensada para ampliarse
+con operaciones del proyecto, escenas, objetos y componentes.
+
+### Compilar
+
+La CLI se puede compilar sin construir la GUI ni sus dependencias gráficas:
+
+```bash
+cmake -S FunshiEngineGL -B FunshiEngineGL/build-cli \
+  -DBUILD_ENGINE=OFF -DBUILD_FUNSHI_CLI=ON \
+  -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF
+cmake --build FunshiEngineGL/build-cli --target FunshiCLI
+```
+
+El ejecutable queda en `FunshiEngineGL/build-cli/FunshiCLI` en Linux y
+`FunshiEngineGL/build-cli/FunshiCLI.exe` en Windows.
+
+### Ayuda y versión
+
+```bash
+FunshiCLI help
+FunshiCLI version
+```
+
+### Solicitudes JSON
+
+Cada solicitud contiene un `command` y, si el comando necesita parámetros, un
+objeto `args`. Se puede enviar el JSON por stdin o guardarlo en un archivo:
+
+```json
+{
+  "command": "project.create",
+  "args": {
+    "name": "MiProyecto"
+  }
+}
+```
+
+```bash
+FunshiCLI --request-file crear-proyecto.json
+```
+
+Las respuestas siempre son un objeto JSON con `ok`, `result` y `error`. Cuando
+una operación falla, `error` contiene un código estable y un mensaje:
+
+```json
+{
+  "ok": true,
+  "result": {
+    "name": "MiProyecto",
+    "path": ".../MotorGrafico/Proyects/MiProyecto"
+  },
+  "error": null
+}
+```
+
+### Comandos disponibles
+
+| `command` | Argumentos | Resultado |
+|---|---|---|
+| `help` | ninguno | Lista los comandos disponibles. |
+| `version` | ninguno | Devuelve la versión del motor. |
+| `project.create` | `args.name` (string) | Crea el proyecto y devuelve su nombre y ruta. |
+| `diagnostics.list` | `args.limit` (opcional, máximo 1000; predeterminado 100) | Devuelve los diagnósticos más recientes. |
+
+La creación recibe únicamente un nombre. El motor elige su ubicación según su
+configuración fija de datos; la CLI no permite indicar una raíz alternativa ni
+crear proyectos en rutas arbitrarias. Un nombre que ya existe produce
+`project_exists` y no modifica ese proyecto.
+
+Las operaciones que necesitan un proyecto aceptan `--project RUTA`. La ruta
+debe identificar un proyecto existente directamente dentro de la carpeta
+`Proyects` definida por el motor; cualquier ubicación externa se rechaza. Los
+comandos actuales de creación y consulta de diagnósticos no requieren contexto
+de proyecto.
+
+### Diagnósticos y códigos de salida
+
+`diagnostics.list` consulta el historial JSON Lines compartido, guardado en
+`MotorGrafico/logs/FunshiEngineGL_diagnosticos.jsonl` bajo la ubicación de datos
+que resuelve el motor. La ventana **Estado** del editor muestra los mismos
+eventos y sus trazas cuando están disponibles.
+
+| Código de salida | Significado |
+|---:|---|
+| `0` | Solicitud completada. |
+| `1` | Falló una operación, por ejemplo crear un proyecto. |
+| `2` | Argumentos o solicitud JSON inválidos, archivo de solicitud inaccesible o comando desconocido. |
+| `3` | La ruta indicada con `--project` no pertenece a un proyecto válido en la ubicación fija del motor. |
+
+---
+
+## 18. Terminal integrada
+
+El panel **Terminal** abre una shell del sistema dentro del editor. Se acopla
+por defecto en la zona inferior y también se puede mostrar u ocultar desde
+**Ventanas → Terminal**. Su directorio de trabajo es la raíz del proyecto
+activo; al cambiar de proyecto se cierra la sesión anterior.
+Ocultar el panel conserva la sesión en ejecución.
+
+Selecciona una shell en el menu del panel y presiona **Iniciar**. Haz clic en
+el area de entrada y escribe directamente en la shell. Enter ejecuta o confirma;
+las flechas, Tab, Backspace, Delete, Home, End y Escape se envian como teclas
+de terminal. Ctrl+C se puede enviar con el boton **Interrumpir**. **Cerrar
+sesion** termina la shell y los procesos asociados.
+
+En Windows se puede elegir `cmd.exe`, Windows PowerShell (`powershell.exe`) o
+PowerShell (`pwsh.exe`, si está instalado). En Linux se puede elegir Bash, `sh`
+o Zsh (si está instalado). Windows requiere ConPTY, disponible desde Windows 10
+versión 1809 ([requisito oficial de CreatePseudoConsole](https://learn.microsoft.com/en-us/windows/console/createpseudoconsole)).
+
+El panel mantiene una cuadricula de celdas y procesa UTF-8, movimiento del
+cursor, borrado y desplazamiento de pantalla, colores ANSI de 16 entradas,
+visibilidad del cursor y pantalla alternativa. La terminal responde consultas
+de estado y posicion del cursor. La emulacion cubre secuencias VT de uso comun;
+no implementa extensiones como colores true-color/256, raton, portapapeles ni
+todas las convenciones de cada emulador. Algunas aplicaciones TUI pueden
+requerir funciones que el panel todavia no ofrece.
 
 ---

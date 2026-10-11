@@ -28,6 +28,7 @@
 #include "../Assets/AssimpMeshLoader.h"
 #include "Configuracion/EditorConfig.h"
 #include "../ExcepcionesCPP/RuntimeException.h"
+#include "../Diagnosticos/RegistroDiagnosticos.h"
 
 Modelos3D::Modelos3D(Entity* origin) : GameObject(origin) {}
 Modelos3D::Modelos3D() : GameObject() {}
@@ -55,6 +56,9 @@ void Modelos3D::setObject() {
                   << "': " << e.what() << '\n';
         mesh_.reset();
     } catch (const std::exception& e) {
+        registrarExcepcionDiagnostica("Objetos/Modelos3D", e,
+                                      NivelDiagnostico::Error,
+                                      "malla:" + filePath_);
         std::cerr << "Modelos3D: error inesperado al cargar '" << filePath_
                   << "': " << e.what() << '\n';
         mesh_.reset();

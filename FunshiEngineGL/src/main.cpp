@@ -49,11 +49,16 @@
 #include "../src/Ventana.h"
 #include "../src/Input/EditorInput.h"
 #include "../src/Rendering/Backend/IRenderBackend.h"
+#include "../src/Diagnosticos/RegistroDiagnosticos.h"
+#include "../src/ExcepcionesCPP/RuntimeException.h"
 #include "ImGuizmo.h"
 #include <iostream>
 #include <cstdio>
 #include <ctime>
 #include <cstdlib>
+#include <exception>
+#include <typeinfo>
+#include <utility>
 #include <filesystem>
 #include <string>
 
@@ -150,6 +155,43 @@ static std::string redirigirSalidaALog(char* argv0) {
     return std::string();
 }
 
+static void registrarExcepcionNoCapturada() noexcept {
+    std::string tipo = "excepcion_no_capturada";
+    std::string mensaje = "El proceso termino por una excepcion no capturada";
+    std::string traza;
+    try {
+        const std::exception_ptr pendiente = std::current_exception();
+        if (pendiente) {
+            try {
+                std::rethrow_exception(pendiente);
+            } catch (const RuntimeException& excepcion) {
+                tipo = excepcion.getTipoExcepcion();
+                mensaje = excepcion.what();
+                traza = excepcion.getStackTrace();
+            } catch (const std::exception& excepcion) {
+                tipo = typeid(excepcion).name();
+                mensaje = excepcion.what();
+            } catch (...) {
+                tipo = "excepcion_desconocida";
+            }
+        }
+        EventoDiagnostico evento;
+        evento.nivel = NivelDiagnostico::Critico;
+        evento.modulo = "main";
+        evento.mensaje = mensaje;
+        evento.tipoExcepcion = tipo;
+        evento.traza = traza;
+        RegistroDiagnosticos::global().registrarUnaVez(
+            std::move(evento), "ExcepcionesCPP:" + mensaje);
+    } catch (...) {
+        // La ruta de terminacion no debe lanzar otra excepcion.
+    }
+    std::fprintf(stderr, "[excepcion critica] %s: %s\n", tipo.c_str(),
+                 mensaje.c_str());
+    std::fflush(stderr);
+    std::abort();
+}
+
 #if defined(_WIN32)
 // Windows con subsistema GUI (/SUBSYSTEM:WINDOWS, WIN32_EXECUTABLE=TRUE):
 // MSVC y MinGW exigen WinMain como entrada, no main. Este wrapper construye
@@ -193,6 +235,7 @@ int WINAPI WinMain(HINSTANCE /*hInstance*/, HINSTANCE /*hPrevInstance*/,
 
 static int EjecutarMotor(int argc, char* argv[])
 {
+    std::set_terminate(registrarExcepcionNoCapturada);
     // Parseo simple de --proyecto <nombre> para arrancar directo en editor
     // (skip menu). Usado para ejecutar un juego exportado: FunshiEngineGL
     // --proyecto MiJuego. --juego fuerza el modo juego, que es como arranca
@@ -229,6 +272,13 @@ static int EjecutarMotor(int argc, char* argv[])
     // [diag] de render ya escriben al log, no a la terminal.
     std::string rutaLog = redirigirSalidaALog(argc > 0 ? argv[0] : nullptr);
     (void)rutaLog;
+
+    EventoDiagnostico inicio;
+    inicio.nivel = NivelDiagnostico::Informacion;
+    inicio.modulo = "main";
+    inicio.proyecto = proyectoCLI;
+    inicio.mensaje = "Editor iniciado";
+    RegistroDiagnosticos::global().registrar(std::move(inicio));
 
     Ventana* auxVentana = new Ventana();
     auxVentana->initVentana();

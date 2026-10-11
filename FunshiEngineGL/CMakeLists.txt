@@ -40,6 +40,32 @@ set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS ${SRC_DIR}/*.cpp ${SRC_DIR}/*.c)
 file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS ${SRC_DIR}/*.h ${SRC_DIR}/*.hpp)
 
+# Las herramientas de proyecto y diagnóstico se comparten entre el editor y
+# Funshi CLI. Estas bibliotecas no dependen de la GUI ni de la pila gráfica.
+list(REMOVE_ITEM SOURCES
+    ${SRC_DIR}/Configuracion/ProjectManager.cpp
+    ${SRC_DIR}/Configuracion/ProjectPaths.cpp
+    ${SRC_DIR}/Diagnosticos/RegistroDiagnosticos.cpp
+    ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp)
+add_library(funshi_project_core STATIC
+    ${SRC_DIR}/Configuracion/ProjectManager.cpp
+    ${SRC_DIR}/Configuracion/ProjectPaths.cpp)
+target_include_directories(funshi_project_core PUBLIC ${SRC_DIR})
+
+add_library(funshi_diagnostics_core STATIC
+    ${SRC_DIR}/Diagnosticos/RegistroDiagnosticos.cpp
+    ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp)
+target_include_directories(funshi_diagnostics_core
+    PUBLIC ${SRC_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/External)
+target_link_libraries(funshi_diagnostics_core PUBLIC funshi_project_core)
+if(WIN32)
+    target_link_libraries(funshi_diagnostics_core PUBLIC dbghelp)
+else()
+    target_link_libraries(funshi_diagnostics_core PUBLIC ${CMAKE_DL_LIBS})
+endif()
+
+option(BUILD_FUNSHI_CLI "Build the headless Funshi CLI" ON)
+
 # El motor se compila como libreria estatica (funshi_engine) y el ejecutable
 # solo aporta el punto de entrada (main.cpp). Asi el engine es reutilizable
 # (tests, herramientas, otros front-ends) sin recompilar todo. CI puede compilar
@@ -77,6 +103,8 @@ if(BUILD_ENGINE)
     endif()
 
     add_library(funshi_engine STATIC ${SOURCES} ${HEADERS})
+    target_link_libraries(funshi_engine PUBLIC
+        funshi_project_core funshi_diagnostics_core)
 
     if(NOT BUILD_RUNTIME)
     # Ejecutable principal (solo el entry point).
@@ -258,6 +286,7 @@ if(UNIX AND NOT APPLE)
         dl
         X11
         pthread
+        util
         Xrandr
         Xi
     )
@@ -431,6 +460,7 @@ add_executable(manifiesto-assets-tests
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ManifiestoAssetsTests.cpp
 )
+target_link_libraries(manifiesto-assets-tests PRIVATE funshi_diagnostics_core)
 target_include_directories(manifiesto-assets-tests PRIVATE
     ${SRC_DIR}
     ${CMAKE_SOURCE_DIR}/External
@@ -493,12 +523,34 @@ endif() # NOT BUILD_RUNTIME (sin pruebas del bloque editor)
 
 endif()
 
+if(BUILD_FUNSHI_CLI AND NOT BUILD_RUNTIME)
+    add_executable(FunshiCLI ${CMAKE_CURRENT_SOURCE_DIR}/tools/FunshiCLI/main.cpp)
+    target_include_directories(FunshiCLI PRIVATE
+        ${SRC_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/External)
+    target_compile_definitions(FunshiCLI PRIVATE
+        FUNSHI_VERSION="${PROJECT_VERSION}")
+    target_link_libraries(FunshiCLI PRIVATE
+        funshi_project_core funshi_diagnostics_core)
+endif()
+
 if(NOT BUILD_RUNTIME)
 # --- Pruebas headless del subsistema FileManager (sin pila gráfica) ---------
 # Compilan en cualquier plataforma (solo std C++17 + los headers de ImGui para
 # TreeGUI.h) y ejercitan GestorDeArchivos/FileManager/FileSystemWatcher contra
 # un proyecto temporal, sin ventanas. Registradas en ctest.
 enable_testing()
+add_executable(terminal-emulator-tests
+    ${SRC_DIR}/Terminal/TerminalEmulator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/TerminalEmulatorTests.cpp
+)
+target_include_directories(terminal-emulator-tests PRIVATE ${SRC_DIR})
+set_target_properties(terminal-emulator-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME terminal-emulator-tests COMMAND terminal-emulator-tests)
+
 add_executable(filemanager-tests
     ${SRC_DIR}/GestorDeArchivos/GestorDeArchivos.cpp
     ${SRC_DIR}/GestorDeArchivos/File.cpp
@@ -544,6 +596,7 @@ add_executable(configuracion-tests
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/EditorConfigTests.cpp
 )
+target_link_libraries(configuracion-tests PRIVATE funshi_diagnostics_core)
 target_include_directories(configuracion-tests PRIVATE ${CMAKE_SOURCE_DIR}/External ${SRC_DIR})
 set_target_properties(configuracion-tests PROPERTIES
     CXX_STANDARD 17
@@ -579,6 +632,7 @@ add_executable(model-serialization-tests
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ModelSerializationTests.cpp
 )
+target_link_libraries(model-serialization-tests PRIVATE funshi_diagnostics_core)
 target_include_directories(model-serialization-tests PRIVATE
     ${SRC_DIR}
     ${CMAKE_SOURCE_DIR}/External
@@ -766,6 +820,7 @@ add_executable(userinterface-tests
     ${SRC_DIR}/GUI/CreadorUI/UserInterfaceCustom.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/UserInterfaceTests.cpp
 )
+target_link_libraries(userinterface-tests PRIVATE funshi_diagnostics_core)
 target_include_directories(userinterface-tests PRIVATE ${SRC_DIR} ${CMAKE_SOURCE_DIR}/External)
 set_target_properties(userinterface-tests PROPERTIES
     CXX_STANDARD 17
