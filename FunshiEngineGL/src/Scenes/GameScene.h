@@ -30,6 +30,7 @@
 #include "../Behaviour/ScriptGameObject.h"
 #include "../Input/InputScripts.h"
 #include "../Configuracion/Apariencia.h"
+#include "../Configuracion/DimensionProyecto.h"
 #include "../Audio/AudioClipsManager.h"
 
 class CameraComponent;
@@ -134,6 +135,10 @@ private:
     // gameScene() a su propio modulo. Se construye en el cuerpo del ctor (la
     // seleccion la inyecta GUIManager en el cuerpo) y vive toda la escena.
     std::unique_ptr<GizmoController> gizmoController_;
+    // Dimension del proyecto (2D plano / 3D con profundidad). La fija main y el
+    // gestor de proyectos antes de cargar la escena; gobierna la siembra de la
+    // grilla, la posicion de la camara inicial y (fase de render) el modo 2D.
+    DimensionProyecto dimensionProyecto = DimensionProyecto::TresD;
 
     void asegurarGrilla();
     void configurarResolverObjetosScripts();
@@ -235,6 +240,11 @@ public:
     // una CameraComponent (crea "CamaraPrincipal" si la escena no tiene).
     // The navigation FPS (WASD + mouse) opera sobre esta camara.
     CameraComponent* getActiveCamera();
+
+    // Dimension del proyecto (2D plano / 3D con profundidad). Se fija ANTES de
+    // cargar la escena: la siembra (grilla y camara inicial) depende de ella.
+    void setDimension(DimensionProyecto dimension) noexcept;
+    DimensionProyecto getDimensionProyecto() const noexcept;
 
     // Cambia la camara activa (por la que se navega y se ve la escena).
     void setActiveCamera(GameObject* object);

@@ -31,6 +31,21 @@ void SettingsCamera::showDataComponent() {
 
 	ImGui::Text("===Camara===");
 
+	int proyeccion = static_cast<int>(camera->getProjection());
+	const char* tipos[] = {"Perspectiva", "Ortografica"};
+	if (ImGui::Combo("Proyeccion", &proyeccion, tipos, 2))
+		camera->setProjection(
+			proyeccion == static_cast<int>(
+							  CameraComponent::Projection::Orthographic)
+				? CameraComponent::Projection::Orthographic
+				: CameraComponent::Projection::Perspective);
+
+	if (camera->getProjection() == CameraComponent::Projection::Orthographic) {
+		float orthoSize = camera->getOrthoSize();
+		if (ImGui::SliderFloat("Zoom (ortho)", &orthoSize, 0.1f, 100.f))
+			camera->setOrthoSize(orthoSize);
+	}
+
 	float fov = camera->getFov();
 	if (ImGui::SliderFloat("FOV", &fov, 1.f, 120.f))
 		camera->setFov(fov);

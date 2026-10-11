@@ -84,6 +84,8 @@ int main() {
         CHECK(cfg.datos().gizmoOperacion == 7, "default gizmoOperacion");
         CHECK(cfg.datos().gizmoGlobal == false, "default gizmo LOCAL");
         CHECK(cfg.datos().camaraActivaId == -1, "default camaraActivaId");
+        CHECK(cfg.datos().dimension == DimensionProyecto::TresD,
+              "default dimension 3D");
         CHECK(cfg.datos().estadoVentanas.empty(), "default sin ventanas");
         CHECK(cfg.datos().apariencia.temaClaro == false, "default tema oscuro");
         CHECK(cfg.datos().apariencia.blancoYNegro == false, "default no B/N");
@@ -216,6 +218,7 @@ int main() {
         cfg.datos().gizmoOperacion = 2;
         cfg.datos().gizmoGlobal = true;
         cfg.datos().camaraActivaId = 7;
+        cfg.datos().dimension = DimensionProyecto::DosD;
         cfg.datos().estadoVentanas["BrowseFile"] = false;
         cfg.datos().estadoVentanas["ShowFolder"] = true;
         cfg.datos().apariencia.temaClaro = true;
@@ -249,6 +252,8 @@ int main() {
         CHECK(cfg2.datos().gizmoOperacion == 2,           "roundtrip gizmoOperacion");
         CHECK(cfg2.datos().gizmoGlobal == true,      "roundtrip gizmo GLOBAL");
         CHECK(cfg2.datos().camaraActivaId == 7,           "roundtrip camaraActivaId");
+        CHECK(cfg2.datos().dimension == DimensionProyecto::DosD,
+              "roundtrip dimension 2D");
         CHECK(cfg2.datos().estadoVentanas.at("BrowseFile") == false,
               "roundtrip ventana BrowseFile");
         CHECK(cfg2.datos().estadoVentanas.at("ShowFolder") == true,
@@ -266,6 +271,57 @@ int main() {
               "roundtrip radio de difuminado");
         CHECK(cfg2.datos().apariencia == cfg.datos().apariencia,
               "roundtrip Apariencia completa");
+    }
+
+    // 2b. Dimension del proyecto: roundtrip 3D explicito, clave ausente e
+    //     invalida. Los proyectos previos al campo (sin "dimension") y los
+    //     valores fuera de rango se leen como 3D, la dimension con la que se
+    //     crearon todos los proyectos anteriores.
+    {
+        const std::string rutaDim = (base / "dim_proyecto.json").string();
+
+        // 3D explicito sobrevive el roundtrip.
+        {
+            EditorConfig cfg;
+            cfg.datos().dimension = DimensionProyecto::TresD;
+            cfg.guardarProyecto(proyNombreTest, rutaDim);
+            EditorConfig leido;
+            leido.cargarProyecto(proyNombreTest, rutaDim);
+            CHECK(leido.datos().dimension == DimensionProyecto::TresD,
+                  "roundtrip dimension 3D");
+        }
+
+        // Clave ausente -> 3D (retrocompatibilidad con proyectos viejos).
+        {
+            std::ofstream f(rutaDim, std::ios::trunc);
+            f << R"({"version": 2, "editor": {"camaraActivaId": 3}})";
+            EditorConfig leido;
+            leido.cargarProyecto(proyNombreTest, rutaDim);
+            CHECK(leido.datos().dimension == DimensionProyecto::TresD,
+                  "dimension ausente -> 3D");
+        }
+
+        // Valor invalido (fuera del enum) -> 3D.
+        {
+            std::ofstream f(rutaDim, std::ios::trunc);
+            f << R"({"version": 3, "editor": {"dimension": 9}})";
+            EditorConfig leido;
+            leido.cargarProyecto(proyNombreTest, rutaDim);
+            CHECK(leido.datos().dimension == DimensionProyecto::TresD,
+                  "dimension invalida -> 3D");
+        }
+
+        // El JSON persistido guarda la clave editor.dimension como entero.
+        {
+            EditorConfig cfg;
+            cfg.datos().dimension = DimensionProyecto::DosD;
+            cfg.guardarProyecto(proyNombreTest, rutaDim);
+            std::ifstream f(rutaDim);
+            std::string contenido((std::istreambuf_iterator<char>(f)),
+                                  std::istreambuf_iterator<char>());
+            CHECK(contenido.find("\"dimension\": 2") != std::string::npos,
+                  "JSON guarda editor.dimension = 2");
+        }
     }
 
     // 3. Archivo corrupto: defaults (sin crash).

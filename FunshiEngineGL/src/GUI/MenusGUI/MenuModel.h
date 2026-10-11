@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "../../Configuracion/Apariencia.h"
+#include "../../Configuracion/DimensionProyecto.h"
 
 // Modelo del paquete MenuGUI: la capa de logica pura del menu de inicio del
 // motor (sin ImGui/GLFW ni rendering). Es el patron MVP de este paquete:
@@ -44,6 +45,16 @@ class MenuModel {
 public:
     enum class Vista { Principal, Opciones, ConfigProyecto, Ninguna };
 
+    // Seccion activa de la vista ConfigProyecto. La vista se organiza como una
+    // barra de navegacion (izquierda) + panel de la seccion elegida (derecha).
+    enum class SeccionConfig { CrearProyecto, Proyectos, Importar };
+
+    // Intencion de la ultima accion de proyecto del usuario. Solo informa la
+    // redaccion de los mensajes de sincronizacion: la autoridad para decidir
+    // entre crear y abrir es la existencia real de la carpeta (fs::exists) en
+    // el gestor de proyectos, no esta bandera.
+    enum class AccionProyecto { Ninguna, Abrir, Crear };
+
     // Abre el menu principal (por ejemplo desde el editor con Escape).
     void mostrarMenu();
     // Cierra el menu y deja el motor listo para editar (boton Iniciar Estudio).
@@ -56,6 +67,20 @@ public:
     bool estaVisible() const noexcept;
     Vista getVista() const noexcept;
 
+    // Seccion activa de ConfigProyecto (barra de navegacion).
+    SeccionConfig getSeccionConfig() const noexcept;
+    void setSeccionConfig(SeccionConfig seccion);
+
+    // Intencion de proyecto (informativa; ver AccionProyecto). Se limpia al
+    // consumirse en el gestor de proyectos.
+    AccionProyecto getAccionProyecto() const noexcept;
+    void setAccionProyecto(AccionProyecto accion);
+    void limpiarAccionProyecto() noexcept;
+
+    // Dimension elegida para el proyecto nuevo (2D/3D). Se lee al crear.
+    DimensionProyecto getDimensionProyecto() const noexcept;
+    void setDimensionProyecto(DimensionProyecto dimension);
+
     const std::string& getNombreProyecto() const noexcept;
     void setNombreProyecto(const std::string& nombre);
 
@@ -64,6 +89,11 @@ public:
     // (MenuGUI::actualizarProyectos) desde el disco; la vista solo la muestra.
     const std::vector<std::string>& getProyectosDisponibles() const noexcept;
     void setProyectosDisponibles(const std::vector<std::string>& proyectos);
+
+    // True si ya hay un proyecto con ese nombre en la lista. Coteja sin
+    // distinguir mayusculas en Windows (su filesystem tampoco las distingue) y
+    // distinguiendo en Linux, igual que la unicidad real de las carpetas.
+    bool existeProyecto(const std::string& nombre) const;
 
     // Edicion de nombre por click derecho: la vista registra aqui el nombre
     // original de la carpeta a renombrar y main la consume al confirmar.
@@ -135,6 +165,10 @@ public:
 
 private:
     Vista vista = Vista::Principal;
+    // Seccion inicial de ConfigProyecto: la barra abre en "Crear proyecto".
+    SeccionConfig seccionConfig = SeccionConfig::CrearProyecto;
+    AccionProyecto accionProyecto = AccionProyecto::Ninguna;
+    DimensionProyecto dimensionProyecto = DimensionProyecto::TresD;
     std::string nombreProyecto = "Nuevo Proyecto";
     std::vector<std::string> proyectosDisponibles;
     // Carpeta original en edicion por click derecho (vacia = confirmar normal).

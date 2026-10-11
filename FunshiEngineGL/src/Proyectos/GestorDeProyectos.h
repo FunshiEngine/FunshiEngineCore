@@ -73,9 +73,10 @@ public:
     void guardarProyectoCompleto();
 
     // Orquesta el flujo del menu: si el usuario pidio renombrar una carpeta
-    // (click derecho -> Editar nombre) o elegir/crear un proyecto del listado,
-    // guarda el estado del activo, renombra en disco si corresponde y entra al
-    // nuevo destino. Consumo unico por frame (la fachada limpia su registro).
+    // (click derecho -> Editar nombre), elegir un proyecto del listado (Abrir)
+    // o crearlo (Crear), guarda el estado del activo, decide crear-vs-abrir
+    // segun exista la carpeta en disco, persiste la dimension de los proyectos
+    // nuevos y entra al destino. La intencion del menu se consume por frame.
     void sincronizarProyectoDesdeMenu();
 
     // Eliminacion confirmada desde el modal del menu: borra la carpeta y, si era

@@ -18,6 +18,7 @@
 */
 #include "GameScene.h"
 #include "CameraFrameSafety.h"
+#include "SiembraEscena.h"
 
 #include "../GUIManager/GUIManager.h"
 #include "../Events/EditorEventBus.h"
@@ -205,6 +206,9 @@ void GameScene::configurarResolverObjetosEditor() {
 }
 
 void GameScene::asegurarGrilla() {
+    // La grilla de rejilla es un auxiliar del mundo 3D: un proyecto 2D juega
+    // sobre el plano XY y no se siembra.
+    if (!SiembraEscena::sembrarGrilla(dimensionProyecto)) return;
     if (!sceneRegistry || !editorController) return;
     auto* lista = getGameObjectsScene();
 
@@ -545,8 +549,21 @@ CameraComponent* GameScene::getActiveCamera() {
                           "CamaraPrincipal");
             creada->addComponent(std::make_unique<Transform>());
             Transform* transform = creada->getComponent<Transform>();
-            if (transform) transform->setTranslatef(0.f, 8.f, 40.f);
+            if (transform) {
+                const SiembraEscena::PosicionInicial pos =
+                    SiembraEscena::posicionCamaraInicial(dimensionProyecto);
+                transform->setTranslatef(pos.x, pos.y, pos.z);
+            }
             creada->addComponent(std::make_unique<CameraComponent>());
+            // En un proyecto 2D la camara sembrada mira el plano XY de frente:
+            // nace ortografica (vista de plano), no en perspectiva.
+            if (dimensionProyecto == DimensionProyecto::DosD) {
+                if (CameraComponent* camaraNueva =
+                        creada->getComponent<CameraComponent>()) {
+                    camaraNueva->setProjection(
+                        CameraComponent::Projection::Orthographic);
+                }
+            }
             return getActiveCamera();
         }
     }
@@ -554,6 +571,14 @@ CameraComponent* GameScene::getActiveCamera() {
     activeCamera = nullptr;
     activeCameraObject = nullptr;
     return nullptr;
+}
+
+void GameScene::setDimension(DimensionProyecto dimension) noexcept {
+    dimensionProyecto = dimension;
+}
+
+DimensionProyecto GameScene::getDimensionProyecto() const noexcept {
+    return dimensionProyecto;
 }
 
 void GameScene::setActiveCamera(GameObject* object) {
@@ -1270,6 +1295,8 @@ void GameScene::gameScene() {
     ctx.guiaEje = !modoJuego ? getGuiaEje() : GuiaEje::kSinGuia;
     ctx.guiaCoordenadasGlobales = isGizmoGlobal();
     ctx.assetManager = assetManager.get();
+    // Proyecto 2D: la pasada omite el cielo y el difuminado por distancia.
+    ctx.modo2D = dimensionProyecto == DimensionProyecto::DosD;
 
     // Pasada de la escena (vistas previas + pasada principal + diag) en la
     // capa de Rendering.

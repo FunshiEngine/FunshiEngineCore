@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 
 #include "../GameObject.h"
@@ -32,6 +33,13 @@ namespace {
 
 constexpr float kPi = 3.14159265358979f;
 constexpr float kGradosARadianes = kPi / 180.f;
+
+// Marca y version del bloque binario de la camara. Las escenas previas a la
+// proyeccion guardaban los campos directamente, sin cabecera: al leer se
+// reconoce esta marca para distinguir el formato nuevo y, si no esta, se
+// retrocede el cursor y se interpreta el layout historico (perspectiva).
+constexpr std::uint32_t kCameraMagic = 0x43414D32; // "CAM2"
+constexpr std::uint32_t kCameraVersion = 2;
 
 // Tope del pitch de la camara (mouse look): sin esto la camara se "da vuelta"
 // al mirar hacia arriba/abajo y el vector "left" degenere (m_up fijo y
@@ -76,20 +84,56 @@ CameraComponent::CameraComponent() {
 
 void CameraComponent::serializeComponent(std::ofstream* file) {
     if (!file || !file->is_open()) return;
+    const std::uint32_t magic = kCameraMagic;
+    const std::uint32_t version = kCameraVersion;
+    file->write(reinterpret_cast<const char*>(&magic), sizeof(magic));
+    file->write(reinterpret_cast<const char*>(&version), sizeof(version));
     file->write(reinterpret_cast<const char*>(&fov), sizeof(float));
     file->write(reinterpret_cast<const char*>(&nearPlane), sizeof(float));
     file->write(reinterpret_cast<const char*>(&farPlane), sizeof(float));
     file->write(reinterpret_cast<const char*>(&speed), sizeof(float));
     file->write(reinterpret_cast<const char*>(&pintar), sizeof(bool));
+    const std::int32_t proyeccion = static_cast<std::int32_t>(projection);
+    file->write(reinterpret_cast<const char*>(&proyeccion), sizeof(proyeccion));
+    file->write(reinterpret_cast<const char*>(&orthoSize), sizeof(float));
 }
 
 void CameraComponent::deserializeComponent(std::ifstream* file) {
     if (!file || !file->is_open()) return;
+
+    std::uint32_t magic = 0;
+    file->read(reinterpret_cast<char*>(&magic), sizeof(magic));
+
+    if (*file && magic == kCameraMagic) {
+        std::uint32_t version = 0;
+        file->read(reinterpret_cast<char*>(&version), sizeof(version));
+        file->read(reinterpret_cast<char*>(&fov), sizeof(float));
+        file->read(reinterpret_cast<char*>(&nearPlane), sizeof(float));
+        file->read(reinterpret_cast<char*>(&farPlane), sizeof(float));
+        file->read(reinterpret_cast<char*>(&speed), sizeof(float));
+        file->read(reinterpret_cast<char*>(&pintar), sizeof(bool));
+        std::int32_t proyeccion = 0;
+        file->read(reinterpret_cast<char*>(&proyeccion), sizeof(proyeccion));
+        file->read(reinterpret_cast<char*>(&orthoSize), sizeof(float));
+        projection = proyeccion == static_cast<std::int32_t>(
+                                      Projection::Orthographic)
+                         ? Projection::Orthographic
+                         : Projection::Perspective;
+        return;
+    }
+
+    // Sin marca: bloque historico (fov, near, far, speed, vista previa). Se
+    // retrocede lo que se leyo de mas y se completa con los valores por
+    // defecto de la proyeccion, que por entonces siempre era perspectiva.
+    file->clear();
+    file->seekg(-static_cast<std::streamoff>(sizeof(magic)), std::ios::cur);
     file->read(reinterpret_cast<char*>(&fov), sizeof(float));
     file->read(reinterpret_cast<char*>(&nearPlane), sizeof(float));
     file->read(reinterpret_cast<char*>(&farPlane), sizeof(float));
     file->read(reinterpret_cast<char*>(&speed), sizeof(float));
     file->read(reinterpret_cast<char*>(&pintar), sizeof(bool));
+    projection = Projection::Perspective;
+    orthoSize = 5.0f;
 }
 
 void CameraComponent::saveComponent(std::ofstream* file) {
@@ -373,10 +417,21 @@ void CameraComponent::getProjectionMatrix(float* outMatrix, float aspect) const 
 
 void CameraComponent::getProjectionMatrix(float* outMatrix, float aspect,
                                           float limiteFarPlane) const {
-    const float maxFar = std::max(nearPlane + 0.01f, limiteFarPlane);
-    const float farEfectivo = std::min(farPlane, maxFar);
-    glm::mat4 p = glm::perspective(glm::radians(fov), aspect, nearPlane,
-                                   farEfectivo);
+    glm::mat4 p(1.0f);
+    if (projection == Projection::Orthographic) {
+        // La ortografica no converge: el volumen es una caja de media altura
+        // orthoSize y media anchura orthoSize*aspect. El limite de far plane
+        // (que la perspectiva usa para no recortar el difuminado del piso) no
+        // aplica aqui, asi que se ignora.
+        const float mediaAltura = orthoSize;
+        const float mediaAnchura = orthoSize * aspect;
+        p = glm::ortho(-mediaAnchura, mediaAnchura, -mediaAltura, mediaAltura,
+                       nearPlane, farPlane);
+    } else {
+        const float maxFar = std::max(nearPlane + 0.01f, limiteFarPlane);
+        const float farEfectivo = std::min(farPlane, maxFar);
+        p = glm::perspective(glm::radians(fov), aspect, nearPlane, farEfectivo);
+    }
     const float* ptr = glm::value_ptr(p);
     std::memcpy(outMatrix, ptr, sizeof(float) * 16);
 }

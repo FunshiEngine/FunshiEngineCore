@@ -52,6 +52,10 @@
 
 #include <btBulletDynamicsCommon.h>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Assets/AssetManager.h"
 #include "../FunshiEngineGL/src/Assets/Mesh.h"
@@ -80,11 +84,13 @@
 #include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
 #include "../FunshiEngineGL/src/Objetos/SimpleObject.h"
 #include "../FunshiEngineGL/src/Rendering/DibujoModelo.h"
+#include "../FunshiEngineGL/src/Rendering/ProyeccionCamara.h"
 #include "../FunshiEngineGL/src/Scenes/EditorController.h"
 #include "../FunshiEngineGL/src/Scenes/CameraFrameSafety.h"
 #include "../FunshiEngineGL/src/Scenes/RutasReescritura.h"
 #include "../FunshiEngineGL/src/Scenes/SceneRegistry.h"
 #include "../FunshiEngineGL/src/Scenes/SceneSerializer.h"
+#include "../FunshiEngineGL/src/Scenes/SiembraEscena.h"
 
 namespace fs = std::filesystem;
 
@@ -2246,6 +2252,135 @@ void gestionDeObjetosDesdeScripts() {
           "sin escena inyectada no hay gestion de objetos");
 }
 
+// --- Siembra de escena por dimension -----------------------------------------
+// La grilla de rejilla es un auxiliar del mundo 3D y la camara inicial se
+// coloca segun el plano de juego: en 2D mira el plano XY de frente desde +Z;
+// en 3D se eleva para ver la grilla. Es politica pura (sin disco ni UI), por
+// eso se prueba sobre las funciones de SiembraEscena.
+void siembraPorDimension() {
+    CHECK(SiembraEscena::sembrarGrilla(DimensionProyecto::TresD),
+          "la grilla de rejilla se siembra en los proyectos 3D");
+    CHECK(!SiembraEscena::sembrarGrilla(DimensionProyecto::DosD),
+          "la grilla de rejilla no se siembra en los proyectos 2D");
+
+    const SiembraEscena::PosicionInicial camara2d =
+        SiembraEscena::posicionCamaraInicial(DimensionProyecto::DosD);
+    CHECK(camara2d.x == 0.f && camara2d.y == 0.f && camara2d.z == 40.f,
+          "en 2D la camara inicial mira el plano de frente desde +Z");
+
+    const SiembraEscena::PosicionInicial camara3d =
+        SiembraEscena::posicionCamaraInicial(DimensionProyecto::TresD);
+    CHECK(camara3d.x == 0.f && camara3d.y == 8.f && camara3d.z == 40.f,
+          "en 3D la camara inicial se eleva para ver la grilla");
+}
+
+// --- Proyeccion de camara (perspectiva / ortografica) ------------------------
+// El renderer de lineas clasifica la proyeccion leyendo la matriz (no el estado
+// de la camara) y la vista ortografica es la base del modo 2D. Se cubre la
+// politica pura (ProyeccionCamara) y la persistencia del tipo de proyeccion y
+// del tamano ortografico, incluida la lectura del bloque historico sin cabecera.
+void proyeccionDeCamara() {
+    const float aspecto = 16.f / 9.f;
+
+    // 1. Proyeccion en perspectiva: se reconoce como no ortografica y la
+    //    distancia al plano cercano coincide con la usada para construirla.
+    const glm::mat4 perspectivaGlm =
+        glm::perspective(glm::radians(60.f), aspecto, 0.5f, 500.f);
+    const float* persp = glm::value_ptr(perspectivaGlm);
+    CHECK(!ProyeccionCamara::esOrtografica(persp),
+          "una proyeccion en perspectiva no se clasifica como ortografica");
+    CHECK(std::fabs(ProyeccionCamara::nearDesdeProyeccion(persp) - 0.5f) < 1e-3f,
+          "el plano cercano se recupera de la matriz en perspectiva");
+
+    // 2. Proyeccion ortografica: se reconoce y no reporta plano cercano (sin
+    //    recorte de lineas por convergencia).
+    const glm::mat4 ortograficaGlm =
+        glm::ortho(-8.f, 8.f, -4.5f, 4.5f, 0.5f, 500.f);
+    const float* ortho = glm::value_ptr(ortograficaGlm);
+    CHECK(ProyeccionCamara::esOrtografica(ortho),
+          "una proyeccion ortografica se clasifica como ortografica");
+    CHECK(ProyeccionCamara::nearDesdeProyeccion(ortho) == 0.f,
+          "en ortografica no hay recorte por plano cercano");
+
+    // 3. La camara construye la matriz del tipo que declara: en ortografica la
+    //    media altura es orthoSize y la media anchura orthoSize*aspect.
+    {
+        CameraComponent camara;
+        float p[16];
+        camara.getProjectionMatrix(p, aspecto);
+        CHECK(!ProyeccionCamara::esOrtografica(p),
+              "por defecto la camara proyecta en perspectiva");
+
+        camara.setProjection(CameraComponent::Projection::Orthographic);
+        camara.setOrthoSize(12.f);
+        camara.getProjectionMatrix(p, aspecto);
+        CHECK(ProyeccionCamara::esOrtografica(p),
+              "una camara ortografica produce una matriz ortografica");
+        CHECK(std::fabs(p[0] - 1.f / (12.f * aspecto)) < 1e-4f &&
+                  std::fabs(p[5] - 1.f / 12.f) < 1e-4f,
+              "la media altura/ancho de la ortografica salen de orthoSize");
+    }
+
+    // 4. Ida y vuelta del bloque binario: tipo de proyeccion y orthoSize se
+    //    conservan.
+    {
+        TempPruebas::CarpetaPrueba carpeta("funshi_camara_proyeccion");
+        const fs::path archivo = carpeta.ruta() / "camara.bin";
+        {
+            CameraComponent camara;
+            camara.setFov(72.f);
+            camara.setNearPlane(0.25f);
+            camara.setFarPlane(800.f);
+            camara.setSpeed(9.f);
+            camara.setPintar(true);
+            camara.setProjection(CameraComponent::Projection::Orthographic);
+            camara.setOrthoSize(20.f);
+            std::ofstream out(archivo, std::ios::binary);
+            camara.saveComponent(&out);
+        }
+        CameraComponent camara;
+        std::ifstream in(archivo, std::ios::binary);
+        camara.loadComponent(&in);
+        CHECK(camara.getProjection() ==
+                  CameraComponent::Projection::Orthographic,
+              "el tipo de proyeccion sobrevive el guardado");
+        CHECK(camara.getOrthoSize() == 20.f,
+              "el tamano ortografico sobrevive el guardado");
+        CHECK(camara.getFov() == 72.f && camara.getNearPlane() == 0.25f &&
+                  camara.getFarPlane() == 800.f && camara.getSpeed() == 9.f &&
+                  camara.getPintar(),
+              "los campos historicos de la camara se conservan");
+    }
+
+    // 5. Compatibilidad: un bloque historico (sin cabecera) se lee como
+    //    perspectiva con el orthoSize por defecto.
+    {
+        TempPruebas::CarpetaPrueba carpeta("funshi_camara_legacy");
+        const fs::path archivo = carpeta.ruta() / "camara_legacy.bin";
+        {
+            const float fov = 55.f, nearPlane = 0.1f, farPlane = 400.f,
+                        speed = 6.f;
+            const bool pintar = false;
+            std::ofstream out(archivo, std::ios::binary);
+            out.write(reinterpret_cast<const char*>(&fov), sizeof(fov));
+            out.write(reinterpret_cast<const char*>(&nearPlane), sizeof(nearPlane));
+            out.write(reinterpret_cast<const char*>(&farPlane), sizeof(farPlane));
+            out.write(reinterpret_cast<const char*>(&speed), sizeof(speed));
+            out.write(reinterpret_cast<const char*>(&pintar), sizeof(pintar));
+        }
+        CameraComponent camara;
+        std::ifstream in(archivo, std::ios::binary);
+        camara.loadComponent(&in);
+        CHECK(camara.getFov() == 55.f && camara.getFarPlane() == 400.f,
+              "el bloque historico de la camara se lee completo");
+        CHECK(camara.getProjection() ==
+                  CameraComponent::Projection::Perspective,
+              "una camara historica se interpreta en perspectiva");
+        CHECK(camara.getOrthoSize() == 5.f,
+              "una camara historica toma el orthoSize por defecto");
+    }
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
@@ -2277,6 +2412,8 @@ int main() {
     propiedadesFisicasDesdeScripts();
     rigidBodySerializaPropiedadesNuevas();
     gestionDeObjetosDesdeScripts();
+    siembraPorDimension();
+    proyeccionDeCamara();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

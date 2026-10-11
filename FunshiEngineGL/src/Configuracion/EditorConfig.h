@@ -24,6 +24,7 @@
 #include <string>
 
 #include "Apariencia.h"
+#include "DimensionProyecto.h"
 
 // Configuracion global del editor (interfaz + menu), persistida en JSON junto
 // al proyecto del usuario. Los datos de escena siguen guardandose en binarios
@@ -37,7 +38,7 @@
 class EditorConfig {
 public:
     struct Datos {
-        int version = 2;
+        int version = 3;
         // Seccion "menu": MenuModel (vista Opciones).
         // Vacio = no hay proyecto abierto todavia (primer arranque o config sin
         // ultimoProyecto). Debe quedarse vacio hasta que el usuario elija o cree
@@ -59,6 +60,9 @@ public:
         // (GameScene usa la primera camara). Se persiste por id porque los
         // archivos de escena ya usan ese id estable.
         int camaraActivaId = -1;
+        // Dimension del proyecto (2D/3D), fijada al crearlo. Los proyectos
+        // previos a este campo se leen como 3D.
+        DimensionProyecto dimension = DimensionProyecto::TresD;
         // stateGUI de cada ventana por su WindowName.
         std::map<std::string, bool> estadoVentanas;
         // Apariencia del editor (tema, modo B/N, acento de la UI y fondo 3D).
