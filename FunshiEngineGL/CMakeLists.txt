@@ -377,6 +377,30 @@ if(WIN32)
     target_compile_definitions(catalogo-componentes-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
+# --- Pruebas headless del tileset (JSON estilo Tiled) y del componente Tilemap
+# Cubre el parseo del tileset, la geometria de la grilla, el flag de solidez por
+# tile, el pintado por capas, el horneado de la malla, el round-trip binario y
+# la shape compuesta del TilemapCollider (tramos horizontales de tiles solidos).
+add_executable(tilemap-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/TilemapTests.cpp
+)
+target_include_directories(tilemap-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+)
+target_link_libraries(tilemap-tests PRIVATE funshi_engine)
+set_target_properties(tilemap-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME tilemap-tests COMMAND tilemap-tests)
+
+if(WIN32)
+    target_link_libraries(tilemap-tests PRIVATE dbghelp)
+    target_compile_definitions(tilemap-tests PRIVATE _HAS_STD_BYTE=0)
+endif()
+
 # --- Pruebas headless del sistema de Prefabs (round-trip y validacion) -------
 # Cubre: guardar prefab -> instanciar -> conservar nombre, tag, jerarquia,
 # componentes, Transform; PrefabLibrary cache y validacion de archivos corruptos.
