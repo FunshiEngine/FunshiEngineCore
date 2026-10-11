@@ -613,8 +613,12 @@ void EditorInput::onMouseButton(GLFWwindow* window, int button, int action,
         const bool puedeUsarEscena =
             (!editorActivo || !io.WantCaptureMouse) && !gizmoCapturing;
 
+        // En 2D la camara esta fija mirando el plano: la orbita (que rota la
+        // camara) no aplica, asi que el clic derecho no la inicia.
+        const bool es2D =
+            scene && scene->getDimensionProyecto() == DimensionProyecto::DosD;
         if (!editorActivo && cursorOcultoPorC && cursorYaCapturado &&
-            puedeUsarEscena) {
+            puedeUsarEscena && !es2D) {
             // Con la GUI oculta y el cursor capturado por C, el clic derecho
             // inicia orbita alrededor del punto al que mira la camara.
             if (CameraComponent* camara = scene ? scene->getActiveCamera() : nullptr) {
@@ -691,15 +695,19 @@ void EditorInput::onMouse(GLFWwindow* window, double xpos, double ypos) {
         !orbitando;
     const bool navegandoConDerecho =
         mouseDerechoParaNavegar && !gizmoCapturing && !orbitando;
+    // En 2D la camara mira el plano y no rota: ni orbita ni yaw/pitch, para que
+    // los sprites queden siempre de frente. El desplazamiento (WASD) sigue vivo.
+    const bool es2D =
+        scene && scene->getDimensionProyecto() == DimensionProyecto::DosD;
 
-    if (orbitando && !gizmoCapturing) {
+    if (orbitando && !gizmoCapturing && !es2D) {
         if (CameraComponent* camara = scene ? scene->getActiveCamera() : nullptr) {
             const float sensibilidad =
                 scene ? scene->getSensibilidadCamara() : 1.0f;
             camara->orbitAround(origenOrbita, radioOrbita,
                                 dx * sensibilidad, dy * sensibilidad);
         }
-    } else if (navegandoLibre || navegandoConDerecho) {
+    } else if ((navegandoLibre || navegandoConDerecho) && !es2D) {
         if (CameraComponent* camara = scene ? scene->getActiveCamera() : nullptr) {
             const float sensibilidad =
                 scene ? scene->getSensibilidadCamara() : 1.0f;

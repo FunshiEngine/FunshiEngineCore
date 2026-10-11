@@ -99,10 +99,22 @@ void SettingsTransform::showDataComponent() {
 	}
 
 	ImGui::Text("Rotate");
-	if (ImGui::DragFloat("Angulo", &rot[0], 0.5f, -360.0f, 360.0f, "%.1f deg") |
-	    ImGui::DragFloat("Xr", &rot[1], 0.01f, -1.0f, 1.0f, "%.2f") |
-	    ImGui::DragFloat("Yr", &rot[2], 0.01f, -1.0f, 1.0f, "%.2f") |
-	    ImGui::DragFloat("Zr", &rot[3], 0.01f, -1.0f, 1.0f, "%.2f")) {
+	if (dimension_ == DimensionProyecto::DosD) {
+		// En 2D la unica rotacion con sentido es alrededor de Z (perpendicular
+		// al plano XY); se oculta el eje y se fija al escribir.
+		float anguloZ = rot[0];
+		if (ImGui::DragFloat("Angulo", &anguloZ, 0.5f, -360.0f, 360.0f,
+		                     "%.1f deg")) {
+			snapshotChildren();
+			componentTransform->setRotatef(anguloZ, 0.0f, 0.0f, 1.0f);
+			applyFreeze();
+			syncFisica();
+		}
+	} else if (ImGui::DragFloat("Angulo", &rot[0], 0.5f, -360.0f, 360.0f,
+	                            "%.1f deg") |
+	           ImGui::DragFloat("Xr", &rot[1], 0.01f, -1.0f, 1.0f, "%.2f") |
+	           ImGui::DragFloat("Yr", &rot[2], 0.01f, -1.0f, 1.0f, "%.2f") |
+	           ImGui::DragFloat("Zr", &rot[3], 0.01f, -1.0f, 1.0f, "%.2f")) {
 		snapshotChildren();
 		componentTransform->setRotatef(rot[0], rot[1], rot[2], rot[3]);
 		applyFreeze();

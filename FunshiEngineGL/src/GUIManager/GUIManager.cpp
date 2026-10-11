@@ -80,13 +80,15 @@ GUIManager::~GUIManager() {
 }
 
 void GUIManager::bindScene(SceneRegistry* scene, EditorController* editor,
-                           EventBus* events) {
+                           EventBus* events,
+                           std::function<DimensionProyecto()> dimensionProvider) {
     this->editor = editor;
     selecteableGUI->bindScene(scene, editor, events);
     statusBarGUI->bindScene(scene);
     settingGUI->setEditor(editor);
     settingGUI->setAudioEngine(audioMotor);
     settingGUI->setEventBus(events);
+    if (dimensionProvider) settingGUI->setDimensionProvider(dimensionProvider);
     canvasGUI->setAudioEngine(audioMotor);
 }
 MenuGUI* GUIManager::getMenuGUI() { return menuGUI.get(); }

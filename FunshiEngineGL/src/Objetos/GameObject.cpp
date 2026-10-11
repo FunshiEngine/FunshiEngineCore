@@ -288,9 +288,12 @@ void GameObject::update(float deltaTime) {
     if (components && !components->isEmpty()) {
         Position<Component*>* position = components->first();
         while (position) {
-            if (Script* script =
-                    dynamic_cast<Script*>(position->getElement()))
+            Component* componente = position->getElement();
+            if (Script* script = dynamic_cast<Script*>(componente))
                 script->actualizar(this, deltaTime);
+            // Hook generico por frame (animacion y demas componentes con
+            // estado): cada componente decide si hace algo.
+            if (componente) componente->onUpdate(*this, deltaTime);
             position = position != components->last()
                            ? components->next(position)
                            : nullptr;
