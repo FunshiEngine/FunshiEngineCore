@@ -34,6 +34,7 @@
 #include "Interface/SettingsInterface.h"
 #include "Grid/SettingsGrid.h"
 #include "Skybox/SettingsSkybox.h"
+#include "Sprite/SettingsSpriteRenderer.h"
 #include "../../Objetos/PrefabLibrary.h"
 #include "../../Objetos/Prefab.h"
 #include "../../Objetos/GameObject.h"
@@ -54,6 +55,7 @@
 #include "../../Objetos/Componentes/Colliders/MallaCollider.h"
 #include "../../Objetos/SimpleObject.h"
 #include "../../Objetos/Componentes/Skybox.h"
+#include "../../Objetos/Componentes/SpriteRenderer.h"
 #include "../../Scenes/EditorController.h"
 #include "../../Comandos/AgregarComponenteComando.h"
 #include "../../Comandos/QuitarComponenteComando.h"
@@ -258,6 +260,10 @@ void SettingsObjectInterface::crearSettingsFaltantes() {
 		SettingsColliderMalla* s = new SettingsColliderMalla(object);
 		s->setEditor(editor);
 		listaDESettingsComponent->addLast(s);
+	}
+	SpriteRenderer* sprite = object->getComponent<SpriteRenderer>();
+	if (sprite != nullptr && !tieneSettingsPara(sprite)) {
+		listaDESettingsComponent->addLast(new SettingsSpriteRenderer(object));
 	}
 	RigidBody* rigidBody = object->getComponent<RigidBody>();
 	if (rigidBody != nullptr && !tieneSettingsPara(rigidBody)) {
@@ -642,6 +648,9 @@ void SettingsObjectInterface::contentGUI() {
 			}
 			if (ImGui::MenuItem("Skybox")) {
 				agregarViaComando(std::make_unique<Skybox>());
+			}
+			if (ImGui::MenuItem("SpriteRenderer")) {
+				agregarViaComando(std::make_unique<SpriteRenderer>());
 			}
 			if (ImGui::MenuItem("AudioSource")) {
 				agregarViaComando(std::make_unique<AudioSource>());

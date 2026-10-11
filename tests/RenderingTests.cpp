@@ -25,6 +25,7 @@
 #include <iostream>
 #include <string>
 
+#include "../FunshiEngineGL/src/Assets/Primitivas2D.h"
 #include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
 #include "../FunshiEngineGL/src/Rendering/CacheCubemap.h"
 #include "../FunshiEngineGL/src/Rendering/Cielo.h"
@@ -776,6 +777,64 @@ void testCacheCubemapClave() {
           "el orden de las caras importa (+X y -X intercambiadas no emparejan)");
 }
 
+// Quad compartido de los sprites 2D: el renderer lo sube a GPU una sola vez y
+// el recorte de la region (uUvRect) y el tamano son por componente, asi que la
+// geometria tiene que ser la unitaria centrada en el origen y con UVs 0..1.
+void testPrimitivaQuad2D() {
+    const Mesh quad = Primitivas2D::quad();
+    CHECK(quad.vertices.size() == 4, "el quad tiene 4 vertices");
+    CHECK(quad.uvs.size() == 4, "el quad tiene una UV por vertice");
+    CHECK(quad.indices.size() == 6, "el quad tiene 6 indices (dos triangulos)");
+    CHECK(!quad.isEmpty(), "el quad no esta vacio");
+    CHECK(quad.hasUvs(), "el quad tiene UVs por vertice (necesarias para texturar)");
+
+    bool centrado = true;
+    bool planoZ = true;
+    for (const vec3& v : quad.vertices) {
+        if (v.x < -0.5f || v.x > 0.5f || v.y < -0.5f || v.y > 0.5f)
+            centrado = false;
+        if (v.z != 0.0f) planoZ = false;
+    }
+    CHECK(centrado, "los vertices van de -0.5 a 0.5 (quad 1x1 centrado)");
+    CHECK(planoZ, "el quad esta en el plano Z=0");
+
+    bool uvValidas = true;
+    for (const vec2& uv : quad.uvs) {
+        if (uv.x < 0.0f || uv.x > 1.0f || uv.y < 0.0f || uv.y > 1.0f)
+            uvValidas = false;
+    }
+    CHECK(uvValidas, "las UVs cubren [0,1]");
+
+    bool indicesValidos = true;
+    for (unsigned int i : quad.indices) {
+        if (i >= quad.vertices.size()) indicesValidos = false;
+    }
+    CHECK(indicesValidos, "los indices referencian vertices existentes");
+}
+
+// Shader de sprites: los atributos tienen que coincidir con el layout fijo del
+// VAO de createMesh (posicion en 0, UV en 2) y el fragment tiene que aplicar
+// tinte, textura opcional y descarte por alpha.
+void testShaderSprites() {
+    const std::string vertex = kSpriteVertexShader;
+    const std::string fragment = kSpriteFragmentShader;
+    CHECK(vertex.find("layout(location = 0) in vec3 aPosition") !=
+                  std::string::npos &&
+              vertex.find("layout(location = 2) in vec2 aUv") !=
+                  std::string::npos,
+          "el shader de sprites lee posicion (0) y UV (2) del VAO de createMesh");
+    CHECK(vertex.find("uUvRect") != std::string::npos &&
+              vertex.find("mix(uUvRect.xy, uUvRect.zw, aUv)") !=
+                  std::string::npos,
+          "el shader recorta la region de la textura por vertice");
+    CHECK(fragment.find("uUseTexture") != std::string::npos &&
+              fragment.find("texture(uTexture, vUv)") != std::string::npos,
+          "el fragment multiplica el texel cuando el sprite tiene textura");
+    CHECK(fragment.find("uTint") != std::string::npos &&
+              fragment.find("discard") != std::string::npos,
+          "el fragment aplica el tinte y descarta los fragmentos transparentes");
+}
+
 int main() {
     testConstantes();
     testVacio();
@@ -801,6 +860,8 @@ int main() {
     testShaderLineasRespetaHorizonteRadial();
     testCieloColoresEfectivos();
     testCacheCubemapClave();
+    testPrimitivaQuad2D();
+    testShaderSprites();
 
     std::cout << "Resultado: " << (total - fallos) << "/" << total
               << " OK" << std::endl;
