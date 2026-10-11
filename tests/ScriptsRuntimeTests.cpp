@@ -42,6 +42,7 @@
 #include "../FunshiEngineGL/src/Behaviour/Backends/SondeoToolchain.h"
 #include "../FunshiEngineGL/src/Behaviour/Reflection/BehaviourReflection.h"
 #include "../FunshiEngineGL/src/Behaviour/ScriptRuntime.h"
+#include "../FunshiEngineGL/src/Diagnosticos/RegistroDiagnosticos.h"
 
 // Stub de MotorScript::tablaApi(): en el motor real lo implementa
 // ScriptGameObject.cpp (necesita GameObject completo); el test solo verifica
@@ -300,6 +301,67 @@ int main() {
         for (const auto& v : valores) {
             if (v.nombre == "vidas")
                 CHECK(v.como<int>() == -1, "onStop deja vidas = -1");
+        }
+    }
+
+    // Una excepción de código de usuario queda atrapada en la frontera del
+    // backend, se publica una vez y bloquea callbacks posteriores.
+    {
+        const std::string fuenteFalla = (dir / "ScriptFalla.cpp").string();
+        std::string contenido = fuenteScript("ScriptFalla");
+        const std::string include = "#include \"Behaviour/IScriptBehaviour.h\"\n";
+        contenido.insert(include.size(), "#include <stdexcept>\n");
+        const std::string inicial = "pasos = 100;";
+        const size_t posicion = contenido.find(inicial);
+        if (posicion != std::string::npos)
+            contenido.replace(posicion, inicial.size(),
+                              "throw std::runtime_error(\"fallo callback\");");
+        escribirFuente(fuenteFalla, contenido);
+        ComportamientoCargado falla;
+        std::string errorFalla;
+        const bool cargada = ScriptRuntime::compilarYCargar(
+            fuenteFalla, "ScriptFalla", falla, errorFalla);
+        CHECK(cargada, "se carga el script que arroja desde onStart");
+        if (cargada) {
+            ScriptRuntime::llamarInicio(falla, nullptr);
+            CHECK(falla.falloRuntime && falla.callbackFallido == "onStart" &&
+                      falla.errorRuntime.find("fallo callback") !=
+                          std::string::npos,
+                  "la excepción estándar deja el fallo runtime en el callback");
+            const auto eventos = RegistroDiagnosticos::global().ultimos(20);
+            CHECK(!eventos.empty() &&
+                      eventos.back().tipoExcepcion == "SCRIPT_CALLBACK_FAILED" &&
+                      eventos.back().mensaje.find(fuenteFalla) !=
+                          std::string::npos,
+                  "la excepción del callback se publica con ruta y tipo");
+            ScriptRuntime::llamarActualizar(falla, nullptr, 0.016f);
+            CHECK(falla.falloRuntime && falla.callbackFallido == "onStart",
+                  "el callback latched no vuelve a invocarse");
+            ScriptRuntime::descargar(falla, nullptr);
+        }
+    }
+
+    {
+        const std::string fuenteFalla = (dir / "ScriptFallaNoEstandar.cpp").string();
+        std::string contenido = fuenteScript("ScriptFallaNoEstandar");
+        const std::string include = "#include \"Behaviour/IScriptBehaviour.h\"\n";
+        contenido.insert(include.size(), "#include <stdexcept>\n");
+        const std::string inicial = "pasos = 100;";
+        const size_t posicion = contenido.find(inicial);
+        if (posicion != std::string::npos)
+            contenido.replace(posicion, inicial.size(), "throw 17;");
+        escribirFuente(fuenteFalla, contenido);
+        ComportamientoCargado falla;
+        std::string errorFalla;
+        const bool cargada = ScriptRuntime::compilarYCargar(
+            fuenteFalla, "ScriptFallaNoEstandar", falla, errorFalla);
+        CHECK(cargada, "se carga el script que arroja una excepción no estándar");
+        if (cargada) {
+            ScriptRuntime::llamarInicio(falla, nullptr);
+            CHECK(falla.falloRuntime && falla.errorRuntime ==
+                      "excepcion C++ no estandar",
+                  "la excepción no estándar queda contenida en BackendCpp");
+            ScriptRuntime::descargar(falla, nullptr);
         }
     }
 

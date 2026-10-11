@@ -52,6 +52,15 @@ void Modelos3D::setObject() {
         mesh_ = assets_ ? assets_->getMesh(filePath_)
                         : AssimpMeshLoader().load(filePath_);
     } catch (const RuntimeException& e) {
+        if (diagnosticos_) {
+            registrarExcepcionDiagnostica(
+                *diagnosticos_, "Objetos/Modelos3D", e,
+                NivelDiagnostico::Error, "malla:" + filePath_);
+        } else {
+            registrarExcepcionDiagnostica(
+                "Objetos/Modelos3D", e, NivelDiagnostico::Error,
+                "malla:" + filePath_);
+        }
         std::cerr << "Modelos3D: no se pudo cargar malla '" << filePath_
                   << "': " << e.what() << '\n';
         mesh_.reset();

@@ -43,6 +43,7 @@
 
 #include "../ScriptGameObject.h"
 #include "../../Configuracion/ProjectPaths.h"
+#include "../../Diagnosticos/RegistroDiagnosticos.h"
 #include "../../FileManager/Proceso.h"
 
 #ifndef FUNSHI_LIBJVM_DEFAULT
@@ -617,10 +618,24 @@ std::string leerCadena(JNIEnv* env, jstring valor) {
     return utf8;
 }
 
-void informarExcepcion(JNIEnv* env, const char* operacion) {
+void informarExcepcion(ComportamientoCargado& comportamiento, JNIEnv* env,
+                       const char* operacion) {
     if (!env || !env->ExceptionCheck()) return;
-    std::cerr << "[scripts-java] " << operacion << ": "
-              << detalleExcepcion(env) << std::endl;
+    const std::string detalle = detalleExcepcion(env);
+    if (comportamiento.falloRuntime) return;
+    comportamiento.falloRuntime = true;
+    comportamiento.callbackFallido = operacion;
+    comportamiento.errorRuntime = detalle;
+    try {
+        EventoDiagnostico evento;
+        evento.nivel = NivelDiagnostico::Error;
+        evento.modulo = "Scripts";
+        evento.tipoExcepcion = "SCRIPT_CALLBACK_FAILED";
+        evento.mensaje = "El callback Java '" + comportamiento.callbackFallido +
+                         "' fallo en '" + comportamiento.fuente + "': " + detalle;
+        RegistroDiagnosticos::global().registrar(std::move(evento));
+    } catch (...) {
+    }
 }
 
 // Contexto del toolchain en los errores de carga: sin el, el mensaje dice que
@@ -1489,14 +1504,14 @@ void BackendJava::descargar(ComportamientoCargado& comportamiento,
     if (!comportamiento.cargado) return;
     JNIEnv* env = entorno();
     if (env) {
-        if (owner && comportamiento.instancia) {
+        if (owner && comportamiento.instancia && !comportamiento.falloRuntime) {
             auto* datos = static_cast<DatosJava*>(comportamiento.datos);
             if (datos && datos->detener)
                 env->CallVoidMethod(
                     static_cast<jobject>(comportamiento.instancia),
                     datos->detener, static_cast<jlong>(
                                         reinterpret_cast<intptr_t>(owner)));
-            informarExcepcion(env, "detener");
+            informarExcepcion(comportamiento, env, "detener");
         }
         if (comportamiento.instancia)
             env->DeleteGlobalRef(
@@ -1513,42 +1528,42 @@ void BackendJava::descargar(ComportamientoCargado& comportamiento,
 
 void BackendJava::llamarInicio(ComportamientoCargado& comportamiento,
                                GameObject* owner) {
-    if (!comportamiento.valido()) return;
+    if (!comportamiento.valido() || comportamiento.falloRuntime) return;
     auto* datos = static_cast<DatosJava*>(comportamiento.datos);
     if (!datos || !datos->iniciar) return;
     entorno()->CallVoidMethod(
         static_cast<jobject>(comportamiento.instancia), datos->iniciar,
         static_cast<jlong>(reinterpret_cast<intptr_t>(owner)));
-    informarExcepcion(entorno(), "iniciar");
+    informarExcepcion(comportamiento, entorno(), "iniciar");
 }
 
 void BackendJava::llamarActualizar(ComportamientoCargado& comportamiento,
                                    GameObject* owner, float deltaTime) {
-    if (!comportamiento.valido()) return;
+    if (!comportamiento.valido() || comportamiento.falloRuntime) return;
     auto* datos = static_cast<DatosJava*>(comportamiento.datos);
     if (!datos || !datos->actualizar) return;
     entorno()->CallVoidMethod(
         static_cast<jobject>(comportamiento.instancia), datos->actualizar,
         static_cast<jlong>(reinterpret_cast<intptr_t>(owner)),
         static_cast<jdouble>(deltaTime));
-    informarExcepcion(entorno(), "actualizar");
+    informarExcepcion(comportamiento, entorno(), "actualizar");
 }
 
 void BackendJava::llamarDetener(ComportamientoCargado& comportamiento,
                                 GameObject* owner) {
-    if (!comportamiento.valido()) return;
+    if (!comportamiento.valido() || comportamiento.falloRuntime) return;
     auto* datos = static_cast<DatosJava*>(comportamiento.datos);
     if (!datos || !datos->detener) return;
     entorno()->CallVoidMethod(
         static_cast<jobject>(comportamiento.instancia), datos->detener,
         static_cast<jlong>(reinterpret_cast<intptr_t>(owner)));
-    informarExcepcion(entorno(), "detener");
+    informarExcepcion(comportamiento, entorno(), "detener");
 }
 
 void BackendJava::llamarContacto(ComportamientoCargado& comportamiento,
                                  GameObject* owner, Collider* propio,
                                  Collider* otro, TipoContacto tipo) {
-    if (!comportamiento.valido()) return;
+    if (!comportamiento.valido() || comportamiento.falloRuntime) return;
     auto* datos = static_cast<DatosJava*>(comportamiento.datos);
     if (!datos) return;
     jmethodID metodo = datos->colisionInicio;
@@ -1565,7 +1580,7 @@ void BackendJava::llamarContacto(ComportamientoCargado& comportamiento,
         static_cast<jlong>(reinterpret_cast<intptr_t>(owner)),
         static_cast<jlong>(reinterpret_cast<intptr_t>(propio)),
         static_cast<jlong>(reinterpret_cast<intptr_t>(otro)));
-    informarExcepcion(entorno(), nombre);
+    informarExcepcion(comportamiento, entorno(), nombre);
 }
 
 void BackendJava::inyectar(

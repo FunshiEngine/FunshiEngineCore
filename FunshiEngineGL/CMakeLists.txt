@@ -539,6 +539,18 @@ if(NOT BUILD_RUNTIME)
 # TreeGUI.h) y ejercitan GestorDeArchivos/FileManager/FileSystemWatcher contra
 # un proyecto temporal, sin ventanas. Registradas en ctest.
 enable_testing()
+add_executable(diagnostic-registry-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/DiagnosticRegistryTests.cpp
+)
+target_link_libraries(diagnostic-registry-tests PRIVATE funshi_diagnostics_core)
+target_include_directories(diagnostic-registry-tests PRIVATE ${SRC_DIR})
+set_target_properties(diagnostic-registry-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME diagnostic-registry-tests COMMAND diagnostic-registry-tests)
+
 add_executable(terminal-emulator-tests
     ${SRC_DIR}/Terminal/TerminalEmulator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/TerminalEmulatorTests.cpp
@@ -774,6 +786,7 @@ set_target_properties(scripts-runtime-tests PROPERTIES
 # The SRC_DIR/CXX_COMPILER macros normally come from the engine target; expose
 # them here too para que el BackendCpp pueda compilar el script de prueba.
 target_include_directories(scripts-runtime-tests PRIVATE ${SRC_DIR})
+target_link_libraries(scripts-runtime-tests PRIVATE funshi_diagnostics_core)
 target_compile_definitions(scripts-runtime-tests
     PRIVATE FUNSHI_SRC_DIR="${SRC_DIR}"
             FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}"
@@ -850,6 +863,7 @@ if(FUNSHI_JAVA)
     )
     target_include_directories(scripts-java-tests
         PRIVATE ${SRC_DIR} ${JNI_INCLUDE_DIRS})
+    target_link_libraries(scripts-java-tests PRIVATE funshi_diagnostics_core)
     target_compile_definitions(scripts-java-tests PRIVATE FUNSHI_JAVA)
     if(Java_JAVAC_EXECUTABLE)
         target_compile_definitions(scripts-java-tests
@@ -873,6 +887,7 @@ endif()
 if(WIN32)
     # dbghelp: CapturaBackTrace/SymFromAddr/SymInitialize (RuntimeException).
     # En MinGW los #pragma comment(lib) de MSVC se ignoran, hay que enlazarla.
+    target_compile_definitions(diagnostic-registry-tests PRIVATE _HAS_STD_BYTE=0)
     target_link_libraries(filemanager-tests PRIVATE dbghelp)
     target_link_libraries(assetmanager-tests PRIVATE dbghelp)
     target_link_libraries(texturemanager-tests PRIVATE dbghelp)

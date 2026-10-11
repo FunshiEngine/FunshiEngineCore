@@ -81,9 +81,18 @@ private:
 };
 
 void registrarExcepcionDiagnostica(
+    RegistroDiagnosticos& registro, const std::string& modulo,
+    const std::exception& excepcion,
+    NivelDiagnostico nivel = NivelDiagnostico::Error,
+    const std::string& clave = std::string()) noexcept;
+void registrarExcepcionDiagnostica(
     const std::string& modulo, const std::exception& excepcion,
     NivelDiagnostico nivel = NivelDiagnostico::Error,
     const std::string& clave = std::string()) noexcept;
+void registrarFalloDiagnostico(
+    RegistroDiagnosticos& registro, const std::string& modulo,
+    const std::string& codigo, const std::string& mensaje,
+    NivelDiagnostico nivel = NivelDiagnostico::Error) noexcept;
 void registrarFalloDiagnostico(
     const std::string& modulo, const std::string& codigo,
     const std::string& mensaje,

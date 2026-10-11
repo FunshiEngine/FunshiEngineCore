@@ -54,6 +54,24 @@ excepciones se usan como control interno. El registro mantiene una ventana
 acotada en memoria para Estado y persiste eventos en JSON Lines para que una
 invocación separada de Funshi CLI pueda consultar el mismo historial. La GUI no
 es propietaria del registro y el módulo de diagnósticos no depende de ImGui.
+Los publicadores aceptan una instancia explícita del registro para pruebas
+aisladas; las llamadas de producción usan la instancia global compartida.
+`SceneSerializer::load` devuelve `false` si la reconstrucción queda parcial o
+falla. Una escena nueva sin índice se crea vacía sin registrar un error; los
+índices corruptos producen advertencias y los objetos que no se pueden leer,
+errores con su identificador y ruta.
+`Modelos3D` publica los errores tipados de `AssetManager` en el mismo registro;
+la clave de ruta evita repetir el evento cuando el cache vuelve a entregar el
+fallo.
+`Script::cargarSiNecesario` publica cada fallo de compilación/carga como
+`SCRIPT_LOAD_FAILED` y conserva el mensaje en el componente para su vista
+contextual. Repetir la consulta de un intento fallido no genera otro evento;
+un nuevo intento sí se registra de nuevo. El registro puede inyectarse en el
+componente para pruebas aisladas.
+Los backends C++ y Java contienen las excepciones de callback dentro de su
+límite de ejecución, conservan el primer fallo en `ComportamientoCargado` y lo
+publican como `SCRIPT_CALLBACK_FAILED`; el comportamiento queda deshabilitado
+hasta la recarga.
 
 La terminal del editor se compone de `GUI/Terminal/TerminalInterface` y
 `Terminal/TerminalSession`. La primera es una ventana persistente registrada en

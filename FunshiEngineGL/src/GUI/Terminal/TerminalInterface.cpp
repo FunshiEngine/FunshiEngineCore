@@ -25,6 +25,30 @@
 #include <cmath>
 
 namespace {
+std::string caracterUtf8(unsigned int caracter) {
+    std::string resultado;
+    if (caracter <= 0x7Fu) {
+        resultado.push_back(static_cast<char>(caracter));
+    } else if (caracter <= 0x7FFu) {
+        resultado.push_back(static_cast<char>(0xC0u | (caracter >> 6)));
+        resultado.push_back(static_cast<char>(0x80u | (caracter & 0x3Fu)));
+    } else if (caracter <= 0xFFFFu &&
+               (caracter < 0xD800u || caracter > 0xDFFFu)) {
+        resultado.push_back(static_cast<char>(0xE0u | (caracter >> 12)));
+        resultado.push_back(
+            static_cast<char>(0x80u | ((caracter >> 6) & 0x3Fu)));
+        resultado.push_back(static_cast<char>(0x80u | (caracter & 0x3Fu)));
+    } else if (caracter > 0xFFFFu && caracter <= 0x10FFFFu) {
+        resultado.push_back(static_cast<char>(0xF0u | (caracter >> 18)));
+        resultado.push_back(
+            static_cast<char>(0x80u | ((caracter >> 12) & 0x3Fu)));
+        resultado.push_back(
+            static_cast<char>(0x80u | ((caracter >> 6) & 0x3Fu)));
+        resultado.push_back(static_cast<char>(0x80u | (caracter & 0x3Fu)));
+    }
+    return resultado;
+}
+
 ImU32 colorTerminal(int indice, bool fondo) {
     static const ImU32 paleta[16] = {
         IM_COL32(0, 0, 0, 255), IM_COL32(205, 49, 49, 255), IM_COL32(13, 188, 121, 255), IM_COL32(229, 229, 16, 255),
@@ -54,9 +78,9 @@ TerminalInterface::~TerminalInterface() { sesion_.detener(); }
 int TerminalInterface::filtrarCaracter(ImGuiInputTextCallbackData* datos) {
     auto* interfaz = static_cast<TerminalInterface*>(datos->UserData);
     if (datos->EventChar >= 0x20 && interfaz->sesion_.estaActiva()) {
-        char utf8[5]{};
-        ImTextCharToUtf8(utf8, datos->EventChar);
-        interfaz->sesion_.escribir(utf8);
+        const std::string utf8 =
+            caracterUtf8(static_cast<unsigned int>(datos->EventChar));
+        if (!utf8.empty()) interfaz->sesion_.escribir(utf8);
     }
     return 1;
 }

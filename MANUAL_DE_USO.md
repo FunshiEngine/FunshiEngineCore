@@ -1343,10 +1343,15 @@ public void actualizar(long objeto, double deltaTime) {
 - **Java:** igual, con el classloader child-first; la JVM se reutiliza.
 - **Ventana Estado:** para cada script muestra nombre, ok/error y mensaje
   (errores de compilacion incluidos), ademas del toolchain detectado.
-- **Errores de carga/compilacion C++** aparecen en la ventana Estado y en el log
-  del motor (`logs/FunshiEngineGL_*.log` en la carpeta de datos, seccion 2), no
-  en el panel del componente; corregi el fuente y guardalo de nuevo (no hace
-  falta terminar la simulacion).
+- **Errores de carga/compilacion C++ y Java** aparecen en la ventana Estado y
+  se publican en el registro estructurado compartido. También se pueden
+  consultar desde `FunshiCLI diagnostics.list` (sección 17). El mensaje
+  contextual del componente conserva el error de su fuente; corregilo y vuelve
+  a cargar el script.
+- Si un callback del script arroja una excepción durante la ejecución, el
+  motor conserva el detalle en el estado del componente, lo publica como
+  `SCRIPT_CALLBACK_FAILED` y deja de invocar ese comportamiento hasta que se
+  recargue. El resto de la escena continúa ejecutándose.
 - Al cerrar la aplicacion los comportamientos se descargan sin disparar
   `onStop`; los backends (incluida la JVM) se apagan despues.
 
@@ -1437,7 +1442,9 @@ de proyecto.
 `diagnostics.list` consulta el historial JSON Lines compartido, guardado en
 `MotorGrafico/logs/FunshiEngineGL_diagnosticos.jsonl` bajo la ubicación de datos
 que resuelve el motor. La ventana **Estado** del editor muestra los mismos
-eventos y sus trazas cuando están disponibles.
+eventos y sus trazas cuando están disponibles. Al abrir una escena nueva, la
+ausencia inicial del índice se trata como normal; los índices corruptos aparecen
+como advertencias y los archivos de objeto que no se pueden leer como errores.
 
 | Código de salida | Significado |
 |---:|---|

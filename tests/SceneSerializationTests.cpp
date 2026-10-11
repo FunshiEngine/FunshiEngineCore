@@ -57,10 +57,12 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "TempPruebas.h"
+#include "../FunshiEngineGL/src/Assets/AssetException.h"
 #include "../FunshiEngineGL/src/Assets/AssetManager.h"
 #include "../FunshiEngineGL/src/Assets/Mesh.h"
 #include "../FunshiEngineGL/src/Behaviour/ScriptGameObject.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
+#include "../FunshiEngineGL/src/Diagnosticos/RegistroDiagnosticos.h"
 #include "../FunshiEngineGL/src/Events/EventBus.h"
 #include "../FunshiEngineGL/src/Fisicas/BulletPhysicsAdapter.h"
 #include "../FunshiEngineGL/src/Fisicas/IPhysicsBackend.h"
@@ -70,6 +72,7 @@
 #include "../FunshiEngineGL/src/Herramientas/PathUtils.h"
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
+#include "../FunshiEngineGL/src/Objetos/Modelos3D.h"
 #include "../FunshiEngineGL/src/Objetos/TagRegistry.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Color.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Material.h"
@@ -542,6 +545,30 @@ std::string leerTodo(const std::string& ruta) {
                        std::istreambuf_iterator<char>());
 }
 
+std::string rutaConSeparadorFinal(const fs::path& ruta) {
+    std::string resultado = ruta.string();
+    if (!resultado.empty() && resultado.back() != fs::path::preferred_separator)
+        resultado.push_back(fs::path::preferred_separator);
+    return resultado;
+}
+
+class LoaderDiagnostico : public IMeshLoader {
+public:
+    int cargas = 0;
+    bool falla = true;
+
+    std::shared_ptr<Mesh> load(const std::string& path) override {
+        ++cargas;
+        if (falla) throw AssetLoadException(path, "fallo controlado del loader");
+        auto malla = std::make_shared<Mesh>();
+        malla->vertices.emplace_back(0.0f, 0.0f, 0.0f);
+        malla->vertices.emplace_back(1.0f, 0.0f, 0.0f);
+        malla->vertices.emplace_back(0.0f, 1.0f, 0.0f);
+        malla->indices = {0, 1, 2};
+        return malla;
+    }
+};
+
 } // namespace
 
 void indiceCorruptoSinFantasmas() {
@@ -604,6 +631,180 @@ void indiceCorruptoSinFantasmas() {
               std::string(c.descripcion) +
                   ": el ciclo guardar-cargar es estable");
     }
+}
+
+void diagnosticosCargaEscena() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_diagnosticos_escena");
+    const fs::path base = carpetaDir.ruta();
+
+    // Una escena nueva se crea vacía sin presentarla como error.
+    {
+        const fs::path nueva = base / "nueva";
+        fs::create_directories(nueva);
+        const fs::path indice = nueva / "SceneBBDDObjetos.txt";
+        RegistroDiagnosticos diagnosticos(nueva / "diagnosticos.jsonl");
+        SceneRegistry registry;
+        EventBus events;
+        AssetManager assets;
+        EditorController editor(&registry, nullptr, &events, &assets);
+        SceneSerializer serializer(&registry, &editor, &assets, &diagnosticos);
+
+        CHECK(serializer.load(indice.string(), (nueva / "Scene").string()),
+              "una escena ausente se inicializa como escena nueva");
+        CHECK(fs::is_regular_file(indice),
+              "la inicialización crea el índice vacío de la escena");
+        CHECK(diagnosticos.ultimos().empty(),
+              "crear una escena nueva no genera un diagnóstico de error");
+    }
+
+    // Un archivo de índice válido reconstruye la escena sin publicar errores.
+    {
+        const fs::path proyecto = base / "valida";
+        fs::create_directories(proyecto);
+        const std::string indice = guardarEscenaVictima(proyecto);
+        RegistroDiagnosticos diagnosticos(proyecto / "diagnosticos.jsonl");
+        SceneRegistry registry;
+        EventBus events;
+        AssetManager assets;
+        EditorController editor(&registry, nullptr, &events, &assets);
+        SceneSerializer serializer(&registry, &editor, &assets, &diagnosticos);
+
+        CHECK(serializer.load(indice,
+                              rutaConSeparadorFinal(proyecto / "Scene")),
+              "una escena válida se carga completamente");
+        CHECK(diagnosticos.ultimos().empty(),
+              "una carga válida no publica diagnósticos");
+    }
+
+    // Una línea malformada se omite y queda registrada como recuperación parcial.
+    {
+        const fs::path proyecto = base / "corrupta";
+        fs::create_directories(proyecto);
+        const std::string indice = guardarEscenaVictima(proyecto);
+        {
+            std::ofstream salida(indice, std::ios::trunc);
+            salida << "ObjectN0.db\n=>\nObjectN1.db\nbasura\n<=\n";
+        }
+        RegistroDiagnosticos diagnosticos(proyecto / "diagnosticos.jsonl");
+        SceneRegistry registry;
+        EventBus events;
+        AssetManager assets;
+        EditorController editor(&registry, nullptr, &events, &assets);
+        SceneSerializer serializer(&registry, &editor, &assets, &diagnosticos);
+
+        CHECK(!serializer.load(indice,
+                               rutaConSeparadorFinal(proyecto / "Scene")),
+              "una línea corrupta indica que la carga fue parcial");
+        const auto eventos = diagnosticos.ultimos(10);
+        CHECK(eventos.size() == 1,
+              "una línea corrupta genera un único diagnóstico");
+        CHECK(eventos.size() == 1 &&
+                  eventos[0].modulo == "Scenes/SceneSerializer" &&
+                  eventos[0].tipoExcepcion == "SCENE_INDEX_INVALID" &&
+                  eventos[0].nivel == NivelDiagnostico::Advertencia &&
+                  eventos[0].mensaje.find("basura") != std::string::npos,
+              "el diagnóstico identifica el índice, línea y nivel de advertencia");
+    }
+
+    // El índice referencia un binario que desapareció: se conserva la carga
+    // parcial y se publica el fallo del objeto que no pudo reconstruirse.
+    {
+        const fs::path proyecto = base / "objeto_ausente";
+        fs::create_directories(proyecto);
+        const std::string indice = guardarEscenaVictima(proyecto);
+        std::error_code error;
+        fs::remove(proyecto / "Scene" / "ObjectN1.db", error);
+        CHECK(!error, "se elimina el binario del objeto para simular el fallo");
+
+        RegistroDiagnosticos diagnosticos(proyecto / "diagnosticos.jsonl");
+        SceneRegistry registry;
+        EventBus events;
+        AssetManager assets;
+        EditorController editor(&registry, nullptr, &events, &assets);
+        SceneSerializer serializer(&registry, &editor, &assets, &diagnosticos);
+
+        CHECK(!serializer.load(indice,
+                               rutaConSeparadorFinal(proyecto / "Scene")),
+              "un binario de objeto ausente hace que la carga sea parcial");
+        const auto eventos = diagnosticos.ultimos(10);
+        CHECK(eventos.size() == 1 &&
+                  eventos[0].tipoExcepcion == "SCENE_OBJECT_LOAD_FAILED" &&
+                  eventos[0].nivel == NivelDiagnostico::Error &&
+                  eventos[0].mensaje.find("id=1") != std::string::npos,
+              "el binario ausente publica un error único asociado al objeto");
+    }
+}
+
+void diagnosticosCargaMalla() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_diagnosticos_malla");
+    RegistroDiagnosticos diagnosticos(carpetaDir.ruta() / "diagnosticos.jsonl");
+    auto loader = std::make_unique<LoaderDiagnostico>();
+    LoaderDiagnostico* loaderRaw = loader.get();
+    AssetManager assets(std::move(loader));
+    Modelos3D modelo;
+    modelo.setAssetManager(&assets);
+    modelo.setRegistroDiagnosticos(&diagnosticos);
+
+    loaderRaw->falla = false;
+    modelo.setPath("Assets/valido.obj");
+    CHECK(modelo.getMesh() != nullptr && diagnosticos.ultimos().empty(),
+          "cargar una malla válida no publica un diagnóstico");
+    CHECK(loaderRaw->cargas == 1, "el loader recibe la carga válida");
+
+    loaderRaw->falla = true;
+    modelo.setPath("Assets/modelo.obj");
+    CHECK(modelo.getMesh() == nullptr && assets.hasFailedMesh("Assets/modelo.obj"),
+          "el fallo del loader deja el modelo vacío y cacheado");
+    CHECK(loaderRaw->cargas == 2, "el loader intenta cargar el modelo fallido");
+
+    modelo.setPath("Assets/modelo.obj");
+    CHECK(loaderRaw->cargas == 2,
+          "la repetición del fallo usa el error cacheado");
+    auto eventos = diagnosticos.ultimos(10);
+    CHECK(eventos.size() == 1 &&
+              eventos[0].tipoExcepcion == "AssetLoadException" &&
+              eventos[0].modulo == "Objetos/Modelos3D" &&
+              eventos[0].nivel == NivelDiagnostico::Error,
+          "RuntimeException de assets llega una sola vez al registro común");
+
+    loaderRaw->falla = false;
+    assets.clearFailedMeshes();
+    modelo.setPath("Assets/modelo.obj");
+    CHECK(modelo.getMesh() != nullptr && loaderRaw->cargas == 3,
+          "limpiar el fallo permite que el modelo se recupere");
+    CHECK(diagnosticos.ultimos(10).size() == 1,
+          "la recuperación exitosa no duplica el diagnóstico histórico");
+}
+
+void diagnosticosCargaScript() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_diagnosticos_script");
+    RegistroDiagnosticos diagnosticos(carpetaDir.ruta() / "diagnosticos.jsonl");
+    Script script;
+    script.setRegistroDiagnosticos(&diagnosticos);
+    const fs::path fuente = carpetaDir.ruta() / "Scripts con espacios" /
+                            "Controlador Ausente.cpp";
+    script.setDllPath(fuente.string());
+
+    CHECK(!script.aplicarCarga(nullptr),
+          "un fuente de script ausente no se carga");
+    CHECK(!script.ultimoError().empty(),
+          "el componente conserva el error devuelto por el backend");
+    auto eventos = diagnosticos.ultimos(10);
+    CHECK(eventos.size() == 1 &&
+              eventos[0].tipoExcepcion == "SCRIPT_LOAD_FAILED" &&
+              eventos[0].mensaje.find(fuente.string()) != std::string::npos,
+          "el fallo de carga se publica una vez con la ruta del fuente");
+
+    CHECK(!script.aplicarCarga(nullptr),
+          "una carga ya intentada conserva el estado de fallo");
+    CHECK(diagnosticos.ultimos(10).size() == 1,
+          "consultar de nuevo el fallo no duplica el diagnóstico");
+
+    script.setDllPath(fuente.string());
+    CHECK(!script.aplicarCarga(nullptr),
+          "reasignar el fuente permite un nuevo intento de carga");
+    CHECK(diagnosticos.ultimos(10).size() == 2,
+          "un nuevo intento fallido genera un evento nuevo");
 }
 
 // --- Variante de guardado: hijo con id=0 --------------------------------------
@@ -2572,6 +2773,9 @@ int main() {
     guardadoConArbolVacio();
     reporteFalloBinario();
     indiceCorruptoSinFantasmas();
+    diagnosticosCargaEscena();
+    diagnosticosCargaMalla();
+    diagnosticosCargaScript();
     hijoConIdCeroSeReasignaAlGuardar();
     hermanosConsecutivosSinPerdida();
     rutasDeCarasDeSkybox();

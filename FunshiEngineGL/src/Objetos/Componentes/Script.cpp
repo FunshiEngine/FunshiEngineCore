@@ -24,8 +24,8 @@
 #include "../Behaviour/ScriptRuntime.h"
 #include "Configuracion/EditorConfig.h"
 #include "../Objetos/GameObject.h"
+#include "Diagnosticos/RegistroDiagnosticos.h"
 
-#include <iostream>
 #include <utility>
 
 namespace {
@@ -151,12 +151,17 @@ bool Script::cargarActual(std::string& error) {
 void Script::cargarSiNecesario() {
     if (cargado_ || dllPath.empty()) return;
     cargado_ = true;
+    error_.clear();
     if (!cargarActual(error_)) {
-        // El detalle se informa en la ventana Estado y en el log del motor
-        // (logs/ junto al ejecutable): el panel del componente ya no repite
-        // el mensaje de error, solo muestra fuente y SerializeField.
-        std::cout << "[scripts] No se pudo cargar '" << dllPath << "':\n"
-                  << error_ << std::endl;
+        EventoDiagnostico evento;
+        evento.nivel = NivelDiagnostico::Error;
+        evento.modulo = "Scripts";
+        evento.tipoExcepcion = "SCRIPT_LOAD_FAILED";
+        evento.mensaje = "No se pudo cargar '" + dllPath + "': " + error_;
+        if (diagnosticos_)
+            diagnosticos_->registrar(std::move(evento));
+        else
+            RegistroDiagnosticos::global().registrar(std::move(evento));
         return;
     }
     camposInspector_ = metadatosCampos(comportamiento_.campos);
@@ -194,7 +199,12 @@ void Script::extraerValores() {
 
 void Script::recargar(GameObject* owner) {
     extraerValores();
-    ScriptRuntime::descargar(comportamiento_, owner); // llama onStop si invalido
+    if (arrancado_) {
+        ScriptRuntime::llamarDetener(comportamiento_, owner);
+        if (comportamiento_.falloRuntime)
+            error_ = comportamiento_.errorRuntime;
+    }
+    ScriptRuntime::descargar(comportamiento_);
     cargado_ = false;
     arrancado_ = false;
     cargarSiNecesario();
@@ -222,7 +232,10 @@ void Script::actualizar(GameObject* owner, float deltaTime) {
     if (aplazarCarga_ && necesitaCompilar()) return;
 
     if (!cargado_) cargarSiNecesario();
-    if (!comportamiento_.valido()) return;
+    if (!comportamiento_.valido() || comportamiento_.falloRuntime) {
+        if (comportamiento_.falloRuntime) error_ = comportamiento_.errorRuntime;
+        return;
+    }
 
     // Hot reload: si el fuente cambio en disco se recompila y se recarga.
     if (ScriptRuntime::cambioElFuente(comportamiento_)) recargar(owner);
@@ -232,12 +245,18 @@ void Script::actualizar(GameObject* owner, float deltaTime) {
         ScriptRuntime::llamarInicio(comportamiento_, owner);
         arrancado_ = true;
     }
+    if (comportamiento_.falloRuntime) {
+        error_ = comportamiento_.errorRuntime;
+        return;
+    }
     ScriptRuntime::llamarActualizar(comportamiento_, owner, deltaTime);
+    if (comportamiento_.falloRuntime) error_ = comportamiento_.errorRuntime;
 }
 
 void Script::detener(GameObject* owner) {
     if (!arrancado_) return;
     ScriptRuntime::llamarDetener(comportamiento_, owner);
+    if (comportamiento_.falloRuntime) error_ = comportamiento_.errorRuntime;
     arrancado_ = false;
     extraerValores(); // que la GUI conserve los ultimos valores editados
 }
@@ -246,6 +265,7 @@ void Script::notificarContacto(GameObject* owner, Collider* propio,
                                Collider* otro, TipoContacto tipo) {
     if (!arrancado_ || !comportamiento_.valido()) return;
     ScriptRuntime::llamarContacto(comportamiento_, owner, propio, otro, tipo);
+    if (comportamiento_.falloRuntime) error_ = comportamiento_.errorRuntime;
 }
 
 void Script::liberarComportamiento() {

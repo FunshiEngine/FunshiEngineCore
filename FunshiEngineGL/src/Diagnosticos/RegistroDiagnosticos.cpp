@@ -185,7 +185,8 @@ std::string RegistroDiagnosticos::nombreNivel(NivelDiagnostico nivel) {
     return "error";
 }
 
-void registrarExcepcionDiagnostica(const std::string& modulo,
+void registrarExcepcionDiagnostica(RegistroDiagnosticos& registro,
+                                   const std::string& modulo,
                                    const std::exception& excepcion,
                                    NivelDiagnostico nivel,
                                    const std::string& clave) noexcept {
@@ -202,12 +203,21 @@ void registrarExcepcionDiagnostica(const std::string& modulo,
         }
         const std::string llave =
             clave.empty() ? "ExcepcionesCPP:" + evento.mensaje : clave;
-        RegistroDiagnosticos::global().registrarUnaVez(std::move(evento), llave);
+        registro.registrarUnaVez(std::move(evento), llave);
     } catch (...) {
     }
 }
 
-void registrarFalloDiagnostico(const std::string& modulo,
+void registrarExcepcionDiagnostica(const std::string& modulo,
+                                   const std::exception& excepcion,
+                                   NivelDiagnostico nivel,
+                                   const std::string& clave) noexcept {
+    registrarExcepcionDiagnostica(RegistroDiagnosticos::global(), modulo,
+                                  excepcion, nivel, clave);
+}
+
+void registrarFalloDiagnostico(RegistroDiagnosticos& registro,
+                               const std::string& modulo,
                                const std::string& codigo,
                                const std::string& mensaje,
                                NivelDiagnostico nivel) noexcept {
@@ -217,8 +227,16 @@ void registrarFalloDiagnostico(const std::string& modulo,
         evento.modulo = modulo;
         evento.mensaje = mensaje;
         evento.tipoExcepcion = codigo;
-        RegistroDiagnosticos::global().registrarUnaVez(
-            std::move(evento), modulo + ":" + codigo + ":" + mensaje);
+        registro.registrarUnaVez(std::move(evento),
+                                 modulo + ":" + codigo + ":" + mensaje);
     } catch (...) {
     }
+}
+
+void registrarFalloDiagnostico(const std::string& modulo,
+                               const std::string& codigo,
+                               const std::string& mensaje,
+                               NivelDiagnostico nivel) noexcept {
+    registrarFalloDiagnostico(RegistroDiagnosticos::global(), modulo, codigo,
+                              mensaje, nivel);
 }
