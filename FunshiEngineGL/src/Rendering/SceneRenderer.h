@@ -27,6 +27,7 @@
 #include "Cielo.h"
 #include "GrillaRenderer.h"
 #include "GuiaEje.h"
+#include "SpriteRenderer.h"
 
 // Clases de otras capas que la pasada de render necesita (solo data CPU).
 class GameObject;
@@ -131,6 +132,12 @@ private:
     void dibujarObjectConOjo(const FrameContext& ctx, GameObject* object,
                              GameObject* camaraOjo, const float view[16],
                              const float projection[16]);
+    // Pasada de sprites 2D: recoge los objetos con componente SpriteRenderer,
+    // los ordena por la Z de su Transform (atras->adelante) y los dibuja con
+    // blend activo y sin escritura de profundidad. Va despues de las mallas 3D
+    // para que un sprite no quede tapado por el estado del pipeline anterior.
+    void dibujarSprites(const FrameContext& ctx, const float view[16],
+                        const float projection[16]);
     void dibujarMarcadorLuz(GameObject* object);
     void dibujarMarcadorCamara(GameObject* object);
     // Cielo degradado (fullscreen triangle): se dibuja ANTES que la grilla y
@@ -176,6 +183,9 @@ private:
 
     std::unique_ptr<class MeshRenderer> meshRenderer_;
     GrillaRenderer grillaRenderer_;
+    // Pasada de sprites 2D (componente SpriteRenderer): mismo pipeline moderno
+    // sobre su propio shader y malla de quad.
+    Rendering::SpriteRenderer spriteRenderer_;
     // Programas del cielo: el del degradado (triangulo a pantalla completa) y el
     // del cubemap del componente Skybox. Se crean en la primera pasada que los
     // necesita y se reusan: ShaderProgram cachea las locations de los uniforms

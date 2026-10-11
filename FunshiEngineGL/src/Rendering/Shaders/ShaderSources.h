@@ -303,6 +303,50 @@ void main() {
 }
 )";
 
+// Shader de sprites 2D (componente SpriteRenderer): quad texturizado sin
+// iluminacion, dibujado con el pipeline moderno sobre la malla de
+// Primitivas2D::quad(). El layout del VAO es el de createMesh: posicion en el
+// atributo 0 y UV en el atributo 2 (el 1 queda para la normal, que un sprite no
+// usa). No expone tangentes ni normales.
+//
+// El recorte de la region de la textura (spritesheet) viaja en uUvRect
+// (u0,v0,u1,v1) y se mezcla por vertice con la UV base del quad; asi una sola
+// malla compartida sirve para cualquier region, sin duplicar geometria. El tinte
+// y la opacidad (fade del componente) van en uTint y se multiplican sobre el
+// texel (modo MODULATE, igual que el material 3D).
+static const char* const kSpriteVertexShader = R"(#version 330 core
+layout(location = 0) in vec3 aPosition;
+layout(location = 2) in vec2 aUv;
+
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProjection;
+uniform vec4 uUvRect;  // (u0, v0, u1, v1)
+
+out vec2 vUv;
+
+void main() {
+    vUv = mix(uUvRect.xy, uUvRect.zw, aUv);
+    gl_Position = uProjection * uView * uModel * vec4(aPosition, 1.0);
+}
+)";
+
+static const char* const kSpriteFragmentShader = R"(#version 330 core
+in vec2 vUv;
+out vec4 FragColor;
+
+uniform sampler2D uTexture;
+uniform int uUseTexture;
+uniform vec4 uTint;
+
+void main() {
+    vec4 color = uTint;
+    if (uUseTexture == 1) color *= texture(uTexture, vUv);
+    if (color.a <= 0.0001) discard;
+    FragColor = color;
+}
+)";
+
 static const char* const kSkyVertexShader = R"(#version 330 core
 // Fullscreen triangle (no VBO needed): gl_VertexID 0..2 maps to the three
 // corners of a triangle that covers the viewport. Solo emite la coordenada NDC
