@@ -25,6 +25,7 @@
 #include "Colliders/CubeCollider.h"
 #include "Colliders/EsfereCollider.h"
 #include "Colliders/MallaCollider.h"
+#include "Colliders/TilemapCollider.h"
 #include "Grid.h"
 #include "InterfaceComponent.h"
 #include "Light.h"
@@ -34,6 +35,7 @@
 #include "Script.h"
 #include "Skybox.h"
 #include "SpriteRenderer.h"
+#include "Tilemap.h"
 #include "Transform.h"
 #include "../GameObject.h"
 
@@ -45,6 +47,7 @@
 #include "../../GUI/ObjetosGUI/Colliders/SettingsColliderCubo.h"
 #include "../../GUI/ObjetosGUI/Colliders/SettingsColliderEsfera.h"
 #include "../../GUI/ObjetosGUI/Colliders/SettingsColliderMalla.h"
+#include "../../GUI/ObjetosGUI/Colliders/SettingsColliderTilemap.h"
 #include "../../GUI/ObjetosGUI/Grid/SettingsGrid.h"
 #include "../../GUI/ObjetosGUI/Interface/SettingsInterface.h"
 #include "../../GUI/ObjetosGUI/Light/SettingsLight.h"
@@ -54,6 +57,7 @@
 #include "../../GUI/ObjetosGUI/Script/SettingsScript.h"
 #include "../../GUI/ObjetosGUI/Skybox/SettingsSkybox.h"
 #include "../../GUI/ObjetosGUI/Sprite/SettingsSpriteRenderer.h"
+#include "../../GUI/ObjetosGUI/Tilemap/SettingsTilemap.h"
 #include "../../GUI/ObjetosGUI/Transform/SettingsTransform.h"
 
 namespace {
@@ -169,6 +173,11 @@ CatalogoComponentes::CatalogoComponentes() {
         [](GameObject& o) {
             return o.getComponent<SpriteRenderer>() != nullptr;
         });
+    add("Tilemap", "Tilemap", DimensionesComponente::DosD, "",
+        [](GameObject&) { return std::unique_ptr<Component>(new Tilemap()); },
+        [](Component*, GameObject* o, const ContextoPanel&) {
+            return std::unique_ptr<SettingsComponent>(new SettingsTilemap(o));
+        });
 
     // Colision: requieren Transform y en el menu se agrupan en un submenu.
     auto exigeTransform = [](GameObject& o) {
@@ -213,6 +222,22 @@ CatalogoComponentes::CatalogoComponentes() {
             return std::unique_ptr<SettingsComponent>(s);
         },
         exigeTransform);
+    add("TilemapCollider", "TilemapCollider", DimensionesComponente::DosD,
+        kSubmenuColliders,
+        [](GameObject& o) -> std::unique_ptr<Component> {
+            Transform* t = o.getComponent<Transform>();
+            if (!t) return nullptr;
+            return std::unique_ptr<Component>(new TilemapCollider(5.0f, t, &o));
+        },
+        [](Component*, GameObject* o, const ContextoPanel& ctx) {
+            auto* s = new SettingsColliderTilemap(o);
+            s->setEditor(ctx.editor);
+            return std::unique_ptr<SettingsComponent>(s);
+        },
+        [](GameObject& o) {
+            return o.getComponent<Transform>() != nullptr &&
+                   o.getComponent<Tilemap>() != nullptr;
+        });
     add("RigidBody", "RigidBody", DimensionesComponente::Ambas, "",
         [](GameObject& o) -> std::unique_ptr<Component> {
             Collider* col = o.getComponent<Collider>();
