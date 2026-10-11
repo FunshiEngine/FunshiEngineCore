@@ -31,14 +31,19 @@ void SettingsCamera::showDataComponent() {
 
 	ImGui::Text("===Camara===");
 
-	int proyeccion = static_cast<int>(camera->getProjection());
-	const char* tipos[] = {"Perspectiva", "Ortografica"};
-	if (ImGui::Combo("Proyeccion", &proyeccion, tipos, 2))
-		camera->setProjection(
-			proyeccion == static_cast<int>(
-							  CameraComponent::Projection::Orthographic)
-				? CameraComponent::Projection::Orthographic
-				: CameraComponent::Projection::Perspective);
+	// En 2D la camara es ortografica por contrato del proyecto: no se ofrece
+	// cambiar la proyeccion ni el FOV, solo el zoom (ortoSise) y el plano.
+	const bool es2D = dimension_ == DimensionProyecto::DosD;
+	if (!es2D) {
+		int proyeccion = static_cast<int>(camera->getProjection());
+		const char* tipos[] = {"Perspectiva", "Ortografica"};
+		if (ImGui::Combo("Proyeccion", &proyeccion, tipos, 2))
+			camera->setProjection(
+				proyeccion == static_cast<int>(
+								  CameraComponent::Projection::Orthographic)
+					? CameraComponent::Projection::Orthographic
+					: CameraComponent::Projection::Perspective);
+	}
 
 	if (camera->getProjection() == CameraComponent::Projection::Orthographic) {
 		float orthoSize = camera->getOrthoSize();
@@ -46,9 +51,11 @@ void SettingsCamera::showDataComponent() {
 			camera->setOrthoSize(orthoSize);
 	}
 
-	float fov = camera->getFov();
-	if (ImGui::SliderFloat("FOV", &fov, 1.f, 120.f))
-		camera->setFov(fov);
+	if (!es2D) {
+		float fov = camera->getFov();
+		if (ImGui::SliderFloat("FOV", &fov, 1.f, 120.f))
+			camera->setFov(fov);
+	}
 
 	float nearPlane = camera->getNearPlane();
 	if (ImGui::SliderFloat("Near", &nearPlane, 0.01f, 10.f))

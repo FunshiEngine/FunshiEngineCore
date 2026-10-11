@@ -350,9 +350,31 @@ add_test(NAME escena-serializacion-tests COMMAND escena-serializacion-tests)
 # vuelve y CTest la da por fallida por timeout en lugar de quedarse esperando.
 set_tests_properties(escena-serializacion-tests PROPERTIES TIMEOUT 60)
 
+# --- Pruebas headless del catalogo de componentes ---------------------------
+# La tabla del catalogo es la fuente unica de que componentes existen, en que
+# dimension aplican y que requisitos piden; la consumen ComponentFactory y el
+# menu del inspector. Necesita funshi_engine (GameObject), como comandos-tests.
+add_executable(catalogo-componentes-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/CatalogoComponentesTests.cpp
+)
+target_include_directories(catalogo-componentes-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+    ${CMAKE_SOURCE_DIR}/External/imgui
+)
+target_link_libraries(catalogo-componentes-tests PRIVATE funshi_engine)
+set_target_properties(catalogo-componentes-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME catalogo-componentes-tests COMMAND catalogo-componentes-tests)
+
 if(WIN32)
     target_link_libraries(escena-serializacion-tests PRIVATE dbghelp)
     target_compile_definitions(escena-serializacion-tests PRIVATE _HAS_STD_BYTE=0)
+    target_link_libraries(catalogo-componentes-tests PRIVATE dbghelp)
+    target_compile_definitions(catalogo-componentes-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
 # --- Pruebas headless del sistema de Prefabs (round-trip y validacion) -------

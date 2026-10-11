@@ -35,6 +35,7 @@
 #include "Grid/SettingsGrid.h"
 #include "Skybox/SettingsSkybox.h"
 #include "Sprite/SettingsSpriteRenderer.h"
+#include "../../Objetos/Componentes/CatalogoComponentes.h"
 #include "../../Objetos/PrefabLibrary.h"
 #include "../../Objetos/Prefab.h"
 #include "../../Objetos/GameObject.h"
@@ -66,6 +67,7 @@
 #include <typeinfo>
 #include <algorithm>
 #include <cstring>
+#include <vector>
 
 SettingsObjectInterface::SettingsObjectInterface(GameObject* object,
                                                  bool stateGUI)
@@ -220,94 +222,40 @@ void SettingsObjectInterface::loadComponents() {
 }
 
 void SettingsObjectInterface::crearSettingsFaltantes() {
+	if (!object) return;
 	const int creadosAntes = listaDESettingsComponent->tam();
-	Transform* transformComponent = object->getComponent<Transform>();
-	if (transformComponent != nullptr && !tieneSettingsPara(transformComponent)) {
-		listaDESettingsComponent->addLast(
-		    new SettingsTransform(transformComponent, object));
-	}
-	Color* colorComponent = object->getComponent<Color>();
-	if (colorComponent != nullptr && !tieneSettingsPara(colorComponent)) {
-		listaDESettingsComponent->addLast(new SettingsColor(object));
-	}
-	Material* materialComponent = object->getComponent<Material>();
-	if (materialComponent != nullptr && !tieneSettingsPara(materialComponent)) {
-		listaDESettingsComponent->addLast(new SettingsMaterial(object));
-	}
-	Light* lightComponent = object->getComponent<Light>();
-	if (lightComponent != nullptr && !tieneSettingsPara(lightComponent)) {
-		listaDESettingsComponent->addLast(new SettingsLight(object));
-	}
-	CameraComponent* cameraComponent = object->getComponent<CameraComponent>();
-	if (cameraComponent != nullptr && !tieneSettingsPara(cameraComponent)) {
-		listaDESettingsComponent->addLast(new SettingsCamera(object));
-	}
-	// SOPORTE PARA AMBOS COLLIDER
-	Collider* collider = object->getComponent<EsfereCollider>();
-	if (collider != nullptr && !tieneSettingsPara(collider)) {
-		SettingsColliderEsfera* s = new SettingsColliderEsfera(object);
-		s->setEditor(editor);
-		listaDESettingsComponent->addLast(s);
-	}
-	collider = object->getComponent<CubeCollider>();
-	if (collider != nullptr && !tieneSettingsPara(collider)) {
-		SettingsColliderCubo* s = new SettingsColliderCubo(object);
-		s->setEditor(editor);
-		listaDESettingsComponent->addLast(s);
-	}
-	collider = object->getComponent<MallaCollider>();
-	if (collider != nullptr && !tieneSettingsPara(collider)) {
-		SettingsColliderMalla* s = new SettingsColliderMalla(object);
-		s->setEditor(editor);
-		listaDESettingsComponent->addLast(s);
-	}
-	SpriteRenderer* sprite = object->getComponent<SpriteRenderer>();
-	if (sprite != nullptr && !tieneSettingsPara(sprite)) {
-		listaDESettingsComponent->addLast(new SettingsSpriteRenderer(object));
-	}
-	RigidBody* rigidBody = object->getComponent<RigidBody>();
-	if (rigidBody != nullptr && !tieneSettingsPara(rigidBody)) {
-		SettingsRigidBody* s = new SettingsRigidBody(object);
-		s->setEditor(editor);
-		listaDESettingsComponent->addLast(s);
-	}
+
+	ContextoPanel contexto;
+	contexto.object = object;
+	contexto.editor = editor;
+	contexto.audio = audioMotor;
+	contexto.dimension = dimensionProyecto();
+
 	ListaDE<Component*>* componentes = object->getComponents();
 	if (componentes && !componentes->isEmpty()) {
-		Position<Component*>* posicion = componentes->first();
-		while (posicion) {
-			if (Script* script =
-			        dynamic_cast<Script*>(posicion->getElement())) {
-				if (!tieneSettingsPara(script))
-					listaDESettingsComponent->addLast(
-					    new SettingsScript(script));
+		// Se recorre el catalogo (no el orden de insercion en el objeto) para
+		// que el orden de los paneles sea estable y definido en un solo lugar.
+		for (const DescriptorComponente& descriptor :
+		     CatalogoComponentes::instancia().descriptores()) {
+			if (!descriptor.crearPanel) continue;
+			Position<Component*>* posicion = componentes->first();
+			while (posicion != nullptr) {
+				Component* componente = posicion->getElement();
+				if (componente != nullptr &&
+				    demangle(typeid(*componente).name()) == descriptor.nombre &&
+				    !tieneSettingsPara(componente)) {
+					std::unique_ptr<SettingsComponent> panel =
+					    descriptor.crearPanel(componente, object, contexto);
+					if (panel)
+						listaDESettingsComponent->addLast(panel.release());
+				}
+				posicion = (posicion != componentes->last())
+				               ? componentes->next(posicion)
+				               : nullptr;
 			}
-			posicion = posicion != componentes->last()
-			               ? componentes->next(posicion)
-			               : nullptr;
 		}
 	}
-	Model* model = object->getComponent<Model>();
-	if (model != nullptr && !tieneSettingsPara(model)) {
-		listaDESettingsComponent->addLast(new SettingsModel(object));
-	}
-	Grid* grid = object->getComponent<Grid>();
-	if (grid != nullptr && !tieneSettingsPara(grid)) {
-		listaDESettingsComponent->addLast(new SettingsGrid(object));
-	}
-	Skybox* skybox = object->getComponent<Skybox>();
-	if (skybox != nullptr && !tieneSettingsPara(skybox)) {
-		listaDESettingsComponent->addLast(new SettingsSkybox(object));
-	}
-	AudioSource* audioSource = object->getComponent<AudioSource>();
-	if (audioSource != nullptr && !tieneSettingsPara(audioSource)) {
-		SettingsAudioSource* settingsAudioSource = new SettingsAudioSource(object);
-		settingsAudioSource->setAudioEngine(audioMotor);
-		listaDESettingsComponent->addLast(settingsAudioSource);
-	}
-	InterfaceComponent* interfaceComp = object->getComponent<InterfaceComponent>();
-	if (interfaceComp != nullptr && !tieneSettingsPara(interfaceComp)) {
-		listaDESettingsComponent->addLast(new SettingsInterface(object));
-	}
+
 	creacionesSettings += static_cast<size_t>(
 	    listaDESettingsComponent->tam() - creadosAntes);
 }
@@ -589,11 +537,10 @@ void SettingsObjectInterface::contentGUI() {
 	        "InspectorAddComponentPopup",
 	        ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
 		if (object && editor) {
-			Transform* transform = object->getComponent<Transform>();
-			Collider* collider = object->getComponent<Collider>();
 			// Alta por el gestor: Ctrl+Z quita el componente agregado.
 			auto agregarViaComando =
 			    [&](std::unique_ptr<Component> componente) {
+				    if (!componente) return;
 				    if (GestorComandos* comandos = editor->getGestorComandos())
 					    comandos->ejecutar(
 					        std::make_unique<AgregarComponenteComando>(
@@ -603,60 +550,52 @@ void SettingsObjectInterface::contentGUI() {
 					    editor->addComponent(object, std::move(componente));
 			    };
 
-			if (ImGui::MenuItem("Transform")) {
-				agregarViaComando(std::make_unique<Transform>());
-			}
-			if (ImGui::MenuItem("Color")) {
-				agregarViaComando(std::make_unique<Color>());
-			}
-			if (ImGui::MenuItem("Material")) {
-				agregarViaComando(std::make_unique<Material>());
-			}
-			if (ImGui::MenuItem("Light")) {
-				agregarViaComando(std::make_unique<Light>());
-			}
-			if (ImGui::MenuItem("CameraComponent")) {
-				agregarViaComando(std::make_unique<CameraComponent>());
-			}
-			if (transform) {
-				if (ImGui::BeginMenu("Add Collider")) {
-					if (ImGui::MenuItem("EsfereCollider")) {
-						agregarViaComando(std::make_unique<EsfereCollider>(5.0f, transform, object));
+			// El catalogo define que componentes existen, en que dimension
+			// aplican, que requisitos piden y en que submenu se agrupan. El
+			// menu solo filtra y dibuja; agregar un componente nuevo no toca
+			// este bloque.
+			const DimensionProyecto dimension = dimensionProyecto();
+			const std::vector<DescriptorComponente>& descriptores =
+			    CatalogoComponentes::instancia().descriptores();
+
+			auto visible = [&](const DescriptorComponente& d) {
+				if (!dimensionesIncluyen(d.dimensiones, dimension)) return false;
+				if (d.prerequisito && !d.prerequisito(*object)) return false;
+				return true;
+			};
+			auto dibujarItems = [&](const std::string& submenu) {
+				for (const DescriptorComponente& d : descriptores) {
+					if (d.submenu != submenu) continue;
+					if (!visible(d)) continue;
+					if (ImGui::MenuItem(d.etiqueta.c_str())) {
+						if (d.crear) agregarViaComando(d.crear(*object));
 					}
-					if (ImGui::MenuItem("CubeCollider")) {
-						agregarViaComando(std::make_unique<CubeCollider>(5.0f, transform, object));
+				}
+			};
+
+			dibujarItems(std::string());
+			// Submenus en orden de aparicion, omitiendo los que no tienen
+			// ningun item visible para la dimension vigente.
+			std::vector<std::string> submenus;
+			for (const DescriptorComponente& d : descriptores) {
+				if (d.submenu.empty()) continue;
+				if (std::find(submenus.begin(), submenus.end(), d.submenu) ==
+				    submenus.end())
+					submenus.push_back(d.submenu);
+			}
+			for (const std::string& submenu : submenus) {
+				bool hayItemVisible = false;
+				for (const DescriptorComponente& d : descriptores) {
+					if (d.submenu == submenu && visible(d)) {
+						hayItemVisible = true;
+						break;
 					}
-					if (ImGui::MenuItem("MallaCollider")) {
-						agregarViaComando(std::make_unique<MallaCollider>(5.0f, transform, object));
-					}
+				}
+				if (!hayItemVisible) continue;
+				if (ImGui::BeginMenu(submenu.c_str())) {
+					dibujarItems(submenu);
 					ImGui::EndMenu();
 				}
-			}
-			if (collider) {
-				if (ImGui::MenuItem("RigidBody")) {
-					agregarViaComando(std::make_unique<RigidBody>(collider, 1.0f));
-				}
-			}
-			if (ImGui::MenuItem("Script")) {
-				agregarViaComando(std::make_unique<Script>());
-			}
-			if (ImGui::MenuItem("Model")) {
-				agregarViaComando(std::make_unique<Model>());
-			}
-			if (ImGui::MenuItem("Grid")) {
-				agregarViaComando(std::make_unique<Grid>());
-			}
-			if (ImGui::MenuItem("Skybox")) {
-				agregarViaComando(std::make_unique<Skybox>());
-			}
-			if (ImGui::MenuItem("SpriteRenderer")) {
-				agregarViaComando(std::make_unique<SpriteRenderer>());
-			}
-			if (ImGui::MenuItem("AudioSource")) {
-				agregarViaComando(std::make_unique<AudioSource>());
-			}
-			if (ImGui::MenuItem("InterfaceComponent")) {
-				agregarViaComando(std::make_unique<InterfaceComponent>());
 			}
 		}
 		ImGui::EndPopup();

@@ -104,7 +104,8 @@ GameScene::GameScene(GUIManager* manager)
         gizmoController_ = std::make_unique<GizmoController>(editorController.get(),
                                                              sceneRegistry.get(),
                                                              selecteableGUI);
-        managerGUI->bindScene(sceneRegistry.get(), editorController.get(), &events);
+        managerGUI->bindScene(sceneRegistry.get(), editorController.get(), &events,
+                              [this]() { return getDimensionProyecto(); });
         managerGUI->setAudioEngine(audioEngine.get());
     }
     asegurarGrilla();
@@ -1329,7 +1330,8 @@ void GameScene::gameScene() {
     }
 
     if (!modoJuego && gizmoController_)
-        gizmoController_->dibujarYRastrear(io, camara);
+        gizmoController_->dibujarYRastrear(
+            io, camara, getDimensionProyecto() == DimensionProyecto::DosD);
 }
 
 void GameScene::mostrarMensaje(const std::string& mensaje) {
