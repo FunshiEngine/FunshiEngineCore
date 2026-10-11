@@ -21,7 +21,9 @@
 
 #include "../GeneralUserInterface.h"
 #include "../../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
+#include "../../Configuracion/DimensionProyecto.h"
 #include <array>
+#include <functional>
 
 class GameObject;
 class SettingsComponent;
@@ -39,6 +41,11 @@ private:
 	EditorController* editor = nullptr;
 	AudioEngine* audioMotor = nullptr;
 	EventBus* events = nullptr;
+	// Proveedor de la dimension del proyecto (2D/3D), inyectado por la escena
+	// via GUIManager. Se consulta al armar el menu "agregar componente" para
+	// ofrecer solo los que aplican. Sin proveedor se asume 3D.
+	std::function<DimensionProyecto()> dimensionProvider_;
+	DimensionProyecto dimensionActual_ = DimensionProyecto::TresD;
 	size_t eventSubscription = 0;
 	bool mostrarVisualesDepuracion_ = true;
 	// Cuenta los cambios estructurales (alta/baja de componente) que
@@ -69,6 +76,13 @@ public:
 	~SettingsObjectInterface();
 
 	void setEditor(EditorController* editor);
+	// Dimension vigente del proyecto, consultada al proveedor si esta inyectado.
+	DimensionProyecto dimensionProyecto() const {
+		return dimensionProvider_ ? dimensionProvider_() : dimensionActual_;
+	}
+	void setDimensionProvider(std::function<DimensionProyecto()> provider) {
+		dimensionProvider_ = std::move(provider);
+	}
 	void setMostrarVisualesDepuracion(bool mostrar) noexcept {
 		mostrarVisualesDepuracion_ = mostrar;
 	}

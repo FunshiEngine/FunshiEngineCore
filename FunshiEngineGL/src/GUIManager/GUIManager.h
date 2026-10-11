@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 #include <cstdlib>
+#include <functional>
 #include "../GUI/MenusGUI/MenuGUI.h"
 #include "../GUI/SceneGUI/SceneSelectedInterface.h"
 #include "../GUI/FileManagerGUI/TreeFilesInterface.h"
@@ -91,7 +92,9 @@ public:
 	GUIManager(GLFWwindow* window);
 	~GUIManager();
 
-	void bindScene(SceneRegistry* scene, EditorController* editor, EventBus* events);
+	void bindScene(SceneRegistry* scene, EditorController* editor,
+	               EventBus* events,
+	               std::function<DimensionProyecto()> dimensionProvider = {});
 
 	EditorEventBus* getEditorEventBus() noexcept { return &eventosEditor; }
 
