@@ -618,6 +618,7 @@ add_executable(rendering-tests
     ${SRC_DIR}/Rendering/LineBuilder.cpp
     ${SRC_DIR}/Rendering/GuiaEje.cpp
     ${SRC_DIR}/Rendering/Difuminado.cpp
+    ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/RenderingTests.cpp
 )
 set_target_properties(rendering-tests PROPERTIES

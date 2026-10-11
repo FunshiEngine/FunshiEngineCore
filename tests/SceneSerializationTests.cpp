@@ -80,6 +80,7 @@
 #include "../FunshiEngineGL/src/Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Script.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Skybox.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/SpriteRenderer.h"
 #include "../FunshiEngineGL/src/Scenes/SceneRegistry.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
 #include "../FunshiEngineGL/src/Objetos/SimpleObject.h"
@@ -2381,6 +2382,54 @@ void proyeccionDeCamara() {
     }
 }
 
+// SpriteRenderer: round-trip binario aislado del componente. El path de textura
+// se persiste relativizado y se relee absolutizado (como Material), asi que se
+// compara el nombre de archivo; el resto de campos (tinte, tamano, region UV) se
+// comparan exactos.
+void spriteRendererSerializaRoundTrip() {
+    TempPruebas::CarpetaPrueba carpeta("funshi_escena_sprite");
+    const fs::path archivo = carpeta.ruta() / "sprite.bin";
+
+    SpriteRenderer original;
+    original.setRutaTextura("assets/heroe.png");
+    original.setTint(0.25f, 0.5f, 0.75f, 0.5f);
+    original.setTamano(2.0f, 3.5f);
+    original.setUvRect(0.1f, 0.2f, 0.6f, 0.9f);
+    {
+        std::ofstream out(archivo, std::ios::binary | std::ios::trunc);
+        CHECK(out.is_open(), "abre el archivo para guardar el sprite");
+        original.saveComponent(&out);
+    }
+
+    SpriteRenderer cargado;
+    {
+        std::ifstream in(archivo, std::ios::binary);
+        CHECK(in.is_open(), "abre el archivo para cargar el sprite");
+        cargado.loadComponent(&in);
+    }
+
+    CHECK(fs::path(cargado.getRutaTextura()).filename() == "heroe.png",
+          "la ruta de textura sobrevive el round-trip");
+    CHECK(cargado.getTint()[0] == 0.25f && cargado.getTint()[1] == 0.5f &&
+              cargado.getTint()[2] == 0.75f && cargado.getTint()[3] == 0.5f,
+          "el tinte sobrevive el round-trip");
+    CHECK(cargado.getTamano()[0] == 2.0f && cargado.getTamano()[1] == 3.5f,
+          "el tamano sobrevive el round-trip");
+    CHECK(cargado.getUvRect()[0] == 0.1f && cargado.getUvRect()[1] == 0.2f &&
+              cargado.getUvRect()[2] == 0.6f && cargado.getUvRect()[3] == 0.9f,
+          "la region UV sobrevive el round-trip");
+
+    // Un componente nuevo arranca con los defaults: quad 1x1, textura completa y
+    // sin textura asignada.
+    SpriteRenderer nuevo;
+    CHECK(nuevo.getRutaTextura().empty(), "un sprite nuevo no tiene textura");
+    CHECK(nuevo.getTamano()[0] == 1.0f && nuevo.getTamano()[1] == 1.0f,
+          "un sprite nuevo mide 1x1");
+    CHECK(nuevo.getUvRect()[0] == 0.0f && nuevo.getUvRect()[2] == 1.0f &&
+              nuevo.getUvRect()[3] == 1.0f,
+          "un sprite nuevo cubre la textura completa");
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
@@ -2414,6 +2463,7 @@ int main() {
     gestionDeObjetosDesdeScripts();
     siembraPorDimension();
     proyeccionDeCamara();
+    spriteRendererSerializaRoundTrip();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

@@ -18,11 +18,14 @@
 */
 #include "SceneRenderer.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
+#include <string>
 #include <system_error>
+#include <vector>
 
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -34,6 +37,7 @@
 #include "Cielo.h"
 #include "DibujoModelo.h"
 #include "../Objetos/Componentes/Skybox.h"
+#include "../Objetos/Componentes/SpriteRenderer.h"
 
 #include "../Herramientas/IconosGUI/stb_image.h"
 #include "LineBatch.h"
@@ -75,6 +79,7 @@ SceneRenderer::~SceneRenderer() = default;
 
 void SceneRenderer::setTextureManager(TextureManager* textureManager) noexcept {
     if (meshRenderer_) meshRenderer_->setTextureManager(textureManager);
+    spriteRenderer_.setTextureManager(textureManager);
 }
 
 void SceneRenderer::destruir() {
@@ -93,6 +98,9 @@ void SceneRenderer::destruir() {
         skyboxCuboMalla_ = Rendering::Backend::kInvalidHandle;
     }
     skyboxClave_.clear();
+    // Malla, shader y texturas del renderer de sprites (mismo criterio: el
+    // contexto GL todavia vive).
+    spriteRenderer_.destruir();
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +254,10 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     prepararLucesFrame(ctx);
 
     dibujarGameObjectsConOjo(ctx, camaraOjo, view, projection);
+
+    // Sprites 2D: despues de las mallas (que ya escribieron profundidad) y
+    // antes de la guia de eje, para que la recta del editor quede por encima.
+    dibujarSprites(ctx, view, projection);
 
     // Guia de eje: despues de los objetos para que la recta se vea por encima
     // de la malla, y solo en la pasada principal.
@@ -697,6 +709,60 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
             (collider->estaVisibleEnEscena() || gizmoSeleccionado)) {
             collider->dibujarCollider();
         }
+    }
+}
+
+void SceneRenderer::dibujarSprites(const FrameContext& ctx, const float view[16],
+                                   const float projection[16]) {
+    auto* gameObjects = ctx.gameObjects;
+    if (!gameObjects || gameObjects->isEmpty()) return;
+
+    struct Entrada {
+        SpriteRenderer* sprite;
+        float z;
+        float model[16];
+    };
+    std::vector<Entrada> entradas;
+
+    Position<GameObject*>* pos = gameObjects->first();
+    while (pos && pos->getElement()) {
+        GameObject* object = pos->getElement();
+        SpriteRenderer* sprite = object->getComponent<SpriteRenderer>();
+        if (sprite) {
+            Transform* transform = object->getGlobalTransform();
+            if (transform) {
+                Entrada entrada;
+                entrada.sprite = sprite;
+                buildMatrixFromTransform(transform, entrada.model);
+                // La traslacion en Z de la matriz mundo (indice 14, columna 3
+                // del layout col-major) es la clave de orden: el sprite no
+                // tiene volumen propio y su orden en pantalla lo decide el Z
+                // del Transform.
+                entrada.z = entrada.model[14];
+                entradas.push_back(entrada);
+            }
+        }
+        pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
+    }
+    if (entradas.empty()) return;
+
+    // Atras->adelante: el primero en dibujarse queda debajo. Con depth mask off
+    // en la pasada, el que se dibuja despues siempre gana el pixel, asi que
+    // este orden define el solapamiento entre sprites.
+    std::sort(entradas.begin(), entradas.end(),
+              [](const Entrada& a, const Entrada& b) { return a.z < b.z; });
+
+    for (const Entrada& e : entradas) {
+        const std::string& ruta = e.sprite->getRutaTextura();
+        Rendering::SpriteDraw draw;
+        draw.model = e.model;
+        draw.view = view;
+        draw.projection = projection;
+        draw.rutaTextura = ruta.empty() ? nullptr : ruta.c_str();
+        draw.tint = e.sprite->getTint();
+        draw.tamano = e.sprite->getTamano();
+        draw.uvRect = e.sprite->getUvRect();
+        spriteRenderer_.dibujar(draw);
     }
 }
 
