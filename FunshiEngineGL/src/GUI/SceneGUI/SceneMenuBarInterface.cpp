@@ -78,6 +78,7 @@ static const char* etiquetaVentana(const std::string& nombre) {
     if (nombre == WindowNames::ShowFolder) return "Vista de contenido";
     if (nombre == WindowNames::SelectedObjects) return "Objetos seleccionados";
     if (nombre == WindowNames::Status) return "Barra de estado";
+    if (nombre == WindowNames::Terminal) return "Terminal";
     return nullptr;
 }
 
@@ -116,7 +117,8 @@ void SceneMenuBarInterface::contentGUI() {
     if (ImGui::BeginMenu("Ventanas")) {
         static const char* kVentanasEditables[] = {
             WindowNames::BrowseFile, WindowNames::ShowFolder,
-            WindowNames::SelectedObjects, WindowNames::Status};
+            WindowNames::SelectedObjects, WindowNames::Status,
+            WindowNames::Terminal};
         for (const char* nombre : kVentanasEditables) {
             const char* etiqueta = etiquetaVentana(nombre);
             if (!etiqueta) continue;

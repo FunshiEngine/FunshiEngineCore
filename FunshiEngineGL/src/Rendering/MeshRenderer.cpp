@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "MeshRenderer.h"
+#include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -63,6 +64,8 @@ bool MeshRenderer::inicializar() {
                                       kDefaultFragmentShader));
         aplicarLuces();
     } catch (const std::exception& e) {
+        registrarExcepcionDiagnostica("Rendering/MeshRenderer", e,
+                                      NivelDiagnostico::Error);
         // Sin shader no hay pipeline: available() queda en false y la pasada
         // dibuja menos, sin objeto que avise uno por uno. El error va al log
         // porque es la causa raiz de una escena vacia.
@@ -189,6 +192,8 @@ bool MeshRenderer::enlazarSlotTextura(const std::string& path, int unit,
         return true;
     } catch (const std::exception& e) {
         texturasFallidas_.insert(path); // no reintentar por frame
+        registrarExcepcionDiagnostica("Rendering/MeshRenderer", e,
+                                      NivelDiagnostico::Advertencia);
         std::cerr << "[MeshRenderer] Textura '" << path << "': " << e.what()
                   << '\n';
         return false;

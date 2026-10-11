@@ -22,6 +22,7 @@
 #include <iostream>
 
 #include "Configuracion/EditorConfig.h"
+#include "Diagnosticos/RegistroDiagnosticos.h"
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -155,7 +156,10 @@ bool ManifiestoAssetsCore::leerArchivo(
                 entradas[id] = std::move(entrada);
         }
         return true;
-    } catch (const std::exception&) {
+    } catch (const std::exception& e) {
+        registrarExcepcionDiagnostica(
+            "Scenes/ManifiestoAssets", e, NivelDiagnostico::Advertencia,
+            "manifiesto:" + ruta);
         return false;
     }
 }

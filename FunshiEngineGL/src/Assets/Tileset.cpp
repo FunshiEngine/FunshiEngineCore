@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "Tileset.h"
+#include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <filesystem>
 #include <fstream>
@@ -86,6 +87,9 @@ bool cargarTilesetDesdeJson(const std::string& rutaAbsoluta, Tileset& out,
         archivo >> raiz;
     } catch (const std::exception& e) {
         error = std::string("JSON invalido: ") + e.what();
+        registrarExcepcionDiagnostica(
+            "Assets/Tileset", e, NivelDiagnostico::Advertencia,
+            "tileset:" + rutaAbsoluta);
         return false;
     }
     if (!raiz.is_object()) {

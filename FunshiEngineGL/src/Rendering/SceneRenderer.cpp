@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SceneRenderer.h"
+#include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <algorithm>
 #include <cmath>
@@ -314,11 +315,17 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
             cieloProgram_ = std::make_unique<ShaderProgram>(
                 ShaderProgram::fromSource(kSkyVertexShader, kSkyFragmentShader));
         } catch (const std::exception& e) {
+            registrarExcepcionDiagnostica("Rendering/SceneRenderer", e,
+                                          NivelDiagnostico::Error);
             std::cerr << "[Cielo] shader del degradado no disponible: " << e.what()
                       << '\n';
             cieloShaderFallado_ = true;
             return;
         } catch (...) {
+            registrarFalloDiagnostico(
+                "Rendering/SceneRenderer", "excepcion_desconocida",
+                "No se pudo inicializar el shader del cielo",
+                NivelDiagnostico::Error);
             cieloShaderFallado_ = true;
             return;
         }
@@ -461,11 +468,17 @@ void main() {
             skyboxProgram_ = std::make_unique<ShaderProgram>(
                 ShaderProgram::fromSource(skyboxVert, skyboxFrag));
         } catch (const std::exception& e) {
+            registrarExcepcionDiagnostica("Rendering/SceneRenderer", e,
+                                          NivelDiagnostico::Error);
             std::cerr << "[Skybox] shader del cubemap no disponible: " << e.what()
                       << '\n';
             skyboxShaderFallado_ = true;
             return false;
         } catch (...) {
+            registrarFalloDiagnostico(
+                "Rendering/SceneRenderer", "excepcion_desconocida",
+                "No se pudo inicializar el shader del skybox",
+                NivelDiagnostico::Error);
             skyboxShaderFallado_ = true;
             return false;
         }

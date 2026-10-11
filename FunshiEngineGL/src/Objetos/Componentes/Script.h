@@ -26,6 +26,8 @@
 #include <utility>
 #include <vector>
 
+class RegistroDiagnosticos;
+
 // Componente de comportamiento de usuario. Apunta a un fuente (.cpp o .java);
 // el backend correspondiente lo compila a un artefacto y lo carga en caliente
 // (hot reload por mtime del fuente). EJECUTA el ciclo onStart/onUpdate/onStop.
@@ -44,6 +46,7 @@ private:
     // compila inline y deja que la cola lo haga.
     bool aplazarCarga_ = false;
     std::string error_;
+    RegistroDiagnosticos* diagnosticos_ = nullptr;
 
     void extraerValores();
     bool cargarActual(std::string& error);
@@ -55,6 +58,9 @@ protected:
 public:
     // API publica historica (GUI existente de drag & drop)
     void setDllPath(std::string dllPath);
+    void setRegistroDiagnosticos(RegistroDiagnosticos* registro) noexcept {
+        diagnosticos_ = registro;
+    }
     std::string getPath() const { return dllPath; }
     const std::string& getNameClass() const { return nameClass; }
     const std::string& getNombreComponente() const noexcept {

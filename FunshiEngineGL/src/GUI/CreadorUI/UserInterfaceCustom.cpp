@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "UserInterfaceCustom.h"
+#include "../../Diagnosticos/RegistroDiagnosticos.h"
 
 #include "../../../External/nlohmann/json.hpp"
 
@@ -121,7 +122,16 @@ bool UserInterfaceCustom::cargar(const std::string& directorio) {
     nlohmann::json j;
     try {
         in >> j;
+    } catch (const std::exception& e) {
+        registrarExcepcionDiagnostica(
+            "GUI/CreadorUI", e, NivelDiagnostico::Advertencia,
+            "ui:" + directorio + "/" + nombre + ".json");
+        return false;
     } catch (...) {
+        registrarFalloDiagnostico(
+            "GUI/CreadorUI", "error_desconocido",
+            "No se pudo interpretar la interfaz " + nombre,
+            NivelDiagnostico::Advertencia);
         return false;
     }
     if (!j.is_object()) return false;

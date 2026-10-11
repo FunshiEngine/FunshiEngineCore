@@ -713,6 +713,8 @@ void GameScene::GUI() {
     if (managerGUI) managerGUI->getStatusBarGUI()->printGUI();
     ImGui::EndDisabled();
     menuBarGUI->printGUI();
+    if (TerminalInterface* terminal = managerGUI->getTerminalGUI())
+        terminal->printGUI();
     // Sistema de audio + creador de interfaces: el catalogo de clips se
     // refresca por frame (tolerante y barato), el canvas refleja la interfaz
     // activa y cambia su presentacion segun el modo play.

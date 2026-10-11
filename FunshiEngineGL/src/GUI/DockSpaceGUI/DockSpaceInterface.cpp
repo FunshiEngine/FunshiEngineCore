@@ -53,6 +53,7 @@ void DockSpaceInterface::initGUI() {
         ImGui::DockBuilderDockWindow(WindowNames::Settings,       right);
         ImGui::DockBuilderDockWindow(WindowNames::MenuBar,        top);
         ImGui::DockBuilderDockWindow(WindowNames::ShowFolder,     bottom);
+        ImGui::DockBuilderDockWindow(WindowNames::Terminal,       bottom);
         ImGui::DockBuilderDockWindow(WindowNames::Status,       right);
         ImGui::DockBuilderDockWindow(WindowNames::CameraList,   right);
         ImGui::DockBuilderDockWindow(WindowNames::CreadorInterfaces, right);
@@ -62,6 +63,7 @@ void DockSpaceInterface::initGUI() {
         ultimoDockValido_[WindowNames::Settings] = right;
         ultimoDockValido_[WindowNames::MenuBar] = top;
         ultimoDockValido_[WindowNames::ShowFolder] = bottom;
+        ultimoDockValido_[WindowNames::Terminal] = bottom;
         ultimoDockValido_[WindowNames::Status] = right;
         ultimoDockValido_[WindowNames::CameraList] = right;
         ultimoDockValido_[WindowNames::CreadorInterfaces] = right;
@@ -109,10 +111,10 @@ void DockSpaceInterface::repararVentanasFlotantes() {
             : primeraHoja(root);
     if (!hojaAlternativa) return;
 
-    const std::array<const char*, 9> nombres = {
+    const std::array<const char*, 10> nombres = {
         WindowNames::SelectedObjects, WindowNames::BrowseFile,
         WindowNames::Settings, WindowNames::MenuBar, WindowNames::ShowFolder,
-        WindowNames::Status, WindowNames::CameraList,
+        WindowNames::Status, WindowNames::Terminal, WindowNames::CameraList,
         WindowNames::CreadorInterfaces, WindowNames::CanvasUI};
     std::vector<ImGuiWindow*> ventanas;
     for (const char* nombre : nombres) {

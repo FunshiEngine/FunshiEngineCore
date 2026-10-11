@@ -40,6 +40,51 @@ proyectos de Visual Studio mantenidos a mano en el repositorio. Las pruebas
 headless viven en `tests/` y el CI en
 `.github/workflows/ci.yml`.
 
+Funshi CLI es un ejecutable aparte (`FunshiEngineGL/tools/FunshiCLI`) y no
+inicializa GLFW, OpenGL ni ImGui. Comparte las bibliotecas `funshi_project_core`
+y `funshi_diagnostics_core` con el editor: la primera resuelve ubicaciones fijas
+y ciclo de vida de proyectos; la segunda mantiene el registro JSON Lines que
+consulta tanto la CLI como la ventana Estado. El target se puede compilar sin
+construir el editor con `BUILD_ENGINE=OFF` y `BUILD_FUNSHI_CLI=ON`.
+
+`RuntimeException` conserva la traza de pila y el tipo de excepción. Los límites
+que deciden que un fallo es reportable lo envían a `RegistroDiagnosticos`; el
+constructor de la excepción no registra automáticamente porque algunas
+excepciones se usan como control interno. El registro mantiene una ventana
+acotada en memoria para Estado y persiste eventos en JSON Lines para que una
+invocación separada de Funshi CLI pueda consultar el mismo historial. La GUI no
+es propietaria del registro y el módulo de diagnósticos no depende de ImGui.
+Los publicadores aceptan una instancia explícita del registro para pruebas
+aisladas; las llamadas de producción usan la instancia global compartida.
+`SceneSerializer::load` devuelve `false` si la reconstrucción queda parcial o
+falla. Una escena nueva sin índice se crea vacía sin registrar un error; los
+índices corruptos producen advertencias y los objetos que no se pueden leer,
+errores con su identificador y ruta.
+`Modelos3D` publica los errores tipados de `AssetManager` en el mismo registro;
+la clave de ruta evita repetir el evento cuando el cache vuelve a entregar el
+fallo.
+`Script::cargarSiNecesario` publica cada fallo de compilación/carga como
+`SCRIPT_LOAD_FAILED` y conserva el mensaje en el componente para su vista
+contextual. Repetir la consulta de un intento fallido no genera otro evento;
+un nuevo intento sí se registra de nuevo. El registro puede inyectarse en el
+componente para pruebas aisladas.
+Los backends C++ y Java contienen las excepciones de callback dentro de su
+límite de ejecución, conservan el primer fallo en `ComportamientoCargado` y lo
+publican como `SCRIPT_CALLBACK_FAILED`; el comportamiento queda deshabilitado
+hasta la recarga.
+
+La terminal del editor se compone de `GUI/Terminal/TerminalInterface` y
+`Terminal/TerminalSession`. La primera es una ventana persistente registrada en
+`GUIManager`, el menú Ventanas y el dock; la sesión lanza una shell dentro del
+directorio fijo del proyecto y entrega su salida mediante un hilo lector. El
+backend Windows usa ConPTY y el POSIX usa `forkpty`; la sesión no reutiliza
+`Proceso`, que es síncrono y no expone una terminal interactiva.
+`TerminalEmulator` mantiene la cuadrícula VT, cursor, atributos ANSI comunes,
+pantalla alternativa y respuestas a consultas de cursor; `TerminalInterface`
+traduce celdas y teclas a ImGui. La entrada UTF-8 se envía al pseudo-terminal.
+La emulación cubre el conjunto usual de secuencias de control, sin extensiones
+como color true-color/256, ratón o portapapeles.
+
 ---
 
 ## 2. Árbol de archivos relevante
@@ -89,6 +134,7 @@ FunshiEngineGL/                          ← raíz del repo
     ├── Imagenes/                        ← íconos del explorador (cpp, cubo, file, folder, hpp)
     ├── ImGuizmo/                        ← dependencia integrada (ImGuizmo.cpp/.h, etc.)
     ├── External/nlohmann/json.hpp       ← nlohmann/json vendoriado (EditorConfig)
+    ├── tools/FunshiCLI/main.cpp          ← entrada de Funshi CLI (JSON por stdin/archivo)
     └── src/
         ├── main.cpp                     ← composition root: ventanas, callbacks, bucle, config
         ├── EngineTime.h / EngineTime.cpp← delta time y limitador de FPS
@@ -134,8 +180,13 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                              DELEGA en ProjectManager (una sola implementación)
         │   ├── ConfigPersistence.h/.cpp ← JSON puro de la config: general + proyecto (escritura atómica)
         │   ├── ProjectPaths.h/.cpp      ← rutas canónicas del motor (una sola fuente de verdad)
-        │   └── ProjectManager.h/.cpp    ← único dueño del ciclo de vida de proyectos (CRUD, migraciones
-        │                                  de estructura antigua, fallbacks de copia); delega rutas en ProjectPaths
+        │   └── ProjectManager.h/.cpp    ← ciclo de vida de proyectos; creación estricta para CLI separada
+        │                                  del aseguramiento/migración usado por el editor
+        ├── Diagnosticos/
+        │   └── RegistroDiagnosticos.h/.cpp ← historial acotado en memoria y persistencia JSON Lines
+        ├── Terminal/
+        │   ├── TerminalSession.h/.cpp      ← shell interactiva mediante ConPTY o pseudo-terminal POSIX
+        │   └── TerminalEmulator.h/.cpp     ← cuadrícula VT y parser de secuencias ANSI
         ├── Entity/
         │   ├── Entity.h                 ← base: lista de componentes, Transform, serialización
         │   └── Entity.cpp
@@ -194,6 +245,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── Estado/
         │   │   └── StatusBarInterface.h/.cpp ← ventana "Estado": toolchain (Compilador/javac/
         │   │                                  libjvm) y estado de scripts (compilando/cargado/error)
+        │   ├── Terminal/
+        │   │   └── TerminalInterface.h/.cpp ← panel de shell integrado con cwd del proyecto
         │   ├── Tema/
         │   │   └── TemaEditor.h/.cpp      ← aplica el perfil Apariencia al estilo ImGui en vivo
         │   │                                  (tema claro/oscuro, acento RGB en TODOS los roles de ImGui
@@ -1150,7 +1203,7 @@ Los bugs de la Fase 2 (cámaras/vistas previas) y sus fixes están documentados 
 
 - [ ] Sistema de animaciones.
 - [ ] `CommandManager` para undo/redo.
-- [ ] Cuadro de log de errores en el editor.
+- [ ] Filtros y navegación avanzada del historial de diagnósticos en el editor.
 - [ ] Resolver IDs duplicados al crear objetos; limpiar binarios huérfanos al eliminar.
 - [ ] Terminar los popups del inspector.
 - [x] Prefabs y duplicación de objetos.

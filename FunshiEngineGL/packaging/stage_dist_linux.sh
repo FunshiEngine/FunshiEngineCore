@@ -15,6 +15,7 @@
 set -euo pipefail
 
 BIN_PATH="${1:?falta el binario compilado (build/FunshiEngineGL)}"
+CLI_PATH="$(dirname "$BIN_PATH")/FunshiCLI"
 DATA_DIR="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/ifw/packages/com.funshi.engine/data" && pwd)}"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -22,11 +23,17 @@ if [ ! -x "$BIN_PATH" ]; then
     echo "[ERROR] No existe el binario $BIN_PATH" >&2
     exit 1
 fi
+if [ ! -x "$CLI_PATH" ]; then
+    echo "[ERROR] No existe la CLI $CLI_PATH" >&2
+    exit 1
+fi
 
 echo "== [1/5] Binario =="
 install -m 755 "$BIN_PATH" "$DATA_DIR/FunshiEngineGL"
+install -m 755 "$CLI_PATH" "$DATA_DIR/FunshiCLI"
 patchelf --force-rpath --set-rpath '$ORIGIN/lib' "$DATA_DIR/FunshiEngineGL"
 echo "  [ok] FunshiEngineGL (RPATH \$ORIGIN/lib)"
+echo "  [ok] FunshiCLI"
 
 echo "== [2/5] Librerias dinamicas (ldd) =="
 mkdir -p "$DATA_DIR/lib"

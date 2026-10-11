@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "TilemapRenderer.h"
+#include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -58,6 +59,8 @@ bool TilemapRenderer::inicializar() {
             ShaderProgram::fromSource(kSpriteVertexShader,
                                       kSpriteFragmentShader));
     } catch (const std::exception& e) {
+        registrarExcepcionDiagnostica("Rendering/TilemapRenderer", e,
+                                      NivelDiagnostico::Error);
         std::cerr << "[TilemapRenderer] Shader de tiles no disponible: "
                   << e.what() << '\n';
         shaderFallado_ = true;
@@ -83,6 +86,8 @@ bool TilemapRenderer::enlazarTextura(const std::string& path) {
         return true;
     } catch (const std::exception& e) {
         texturasFallidas_.insert(path);
+        registrarExcepcionDiagnostica("Rendering/TilemapRenderer", e,
+                                      NivelDiagnostico::Advertencia);
         std::cerr << "[TilemapRenderer] Textura '" << path << "': " << e.what()
                   << '\n';
         return false;

@@ -61,6 +61,8 @@
 
 #include "../ScriptGameObject.h"
 #include "../IScriptBehaviour.h"
+#include "../../Diagnosticos/RegistroDiagnosticos.h"
+#include <exception>
 
 #ifndef FUNSHI_CXX_COMPILER
 #define FUNSHI_CXX_COMPILER "g++"
@@ -71,6 +73,39 @@
 
 namespace {
 const char* nombreFabrica() { return FUNSHI_SYM_CREAR; }
+
+void registrarFalloCallback(ComportamientoCargado& comportamiento,
+                            const char* callback,
+                            const std::string& detalle) noexcept {
+    if (comportamiento.falloRuntime) return;
+    comportamiento.falloRuntime = true;
+    comportamiento.callbackFallido = callback;
+    comportamiento.errorRuntime = detalle;
+    try {
+        EventoDiagnostico evento;
+        evento.nivel = NivelDiagnostico::Error;
+        evento.modulo = "Scripts";
+        evento.tipoExcepcion = "SCRIPT_CALLBACK_FAILED";
+        evento.mensaje = "El callback '" + comportamiento.callbackFallido +
+                         "' fallo en '" + comportamiento.fuente + "': " + detalle;
+        RegistroDiagnosticos::global().registrar(std::move(evento));
+    } catch (...) {
+    }
+}
+
+template <typename Funcion>
+void invocarCallback(ComportamientoCargado& comportamiento,
+                     const char* callback, Funcion&& funcion) noexcept {
+    if (!comportamiento.valido() || comportamiento.falloRuntime) return;
+    try {
+        funcion();
+    } catch (const std::exception& excepcion) {
+        registrarFalloCallback(comportamiento, callback, excepcion.what());
+    } catch (...) {
+        registrarFalloCallback(comportamiento, callback,
+                               "excepcion C++ no estandar");
+    }
+}
 
 // Ruta del compilador a invocar, en este orden:
 //   1. FUNSHI_CXX del entorno: override explicito del usuario, gana siempre.
@@ -350,9 +385,11 @@ void BackendCpp::descargar(ComportamientoCargado& comportamiento) {
 void BackendCpp::descargar(ComportamientoCargado& comportamiento,
                            GameObject* owner) {
     if (!comportamiento.cargado) return;
-    if (owner && comportamiento.instancia) {
-        reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia)
-            ->onStop(owner);
+    if (owner && comportamiento.instancia && !comportamiento.falloRuntime) {
+        invocarCallback(comportamiento, "onStop", [&] {
+            reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia)
+                ->onStop(owner);
+        });
     }
     if (comportamiento.instancia) {
         delete reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia);
@@ -367,38 +404,46 @@ void BackendCpp::descargar(ComportamientoCargado& comportamiento,
 
 void BackendCpp::llamarInicio(ComportamientoCargado& comportamiento,
                               GameObject* owner) {
-    if (!comportamiento.valido()) return;
-    reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia)->onStart(owner);
+    invocarCallback(comportamiento, "onStart", [&] {
+        reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia)->onStart(owner);
+    });
 }
 
 void BackendCpp::llamarActualizar(ComportamientoCargado& comportamiento,
                                   GameObject* owner, float deltaTime) {
-    if (!comportamiento.valido()) return;
-    reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia)
-        ->onUpdate(owner, deltaTime);
+    invocarCallback(comportamiento, "onUpdate", [&] {
+        reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia)
+            ->onUpdate(owner, deltaTime);
+    });
 }
 
 void BackendCpp::llamarDetener(ComportamientoCargado& comportamiento,
                                GameObject* owner) {
-    if (!comportamiento.valido()) return;
-    reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia)->onStop(owner);
+    invocarCallback(comportamiento, "onStop", [&] {
+        reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia)->onStop(owner);
+    });
 }
 
 void BackendCpp::llamarContacto(ComportamientoCargado& comportamiento,
                                 GameObject* owner, Collider* propio,
                                 Collider* otro, TipoContacto tipo) {
-    if (!comportamiento.valido()) return;
+    if (!comportamiento.valido() || comportamiento.falloRuntime) return;
     IScriptBehaviour* script =
         reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia);
-    switch (tipo) {
-        case TipoContacto::Inicio:
-            script->onCollisionEnter(owner, propio, otro);
-            break;
-        case TipoContacto::Persistencia:
-            script->onCollisionStay(owner, propio, otro);
-            break;
-        case TipoContacto::Fin:
-            script->onCollisionExit(owner, propio, otro);
-            break;
-    }
+    const char* callback = "onCollisionEnter";
+    if (tipo == TipoContacto::Persistencia) callback = "onCollisionStay";
+    else if (tipo == TipoContacto::Fin) callback = "onCollisionExit";
+    invocarCallback(comportamiento, callback, [&] {
+        switch (tipo) {
+            case TipoContacto::Inicio:
+                script->onCollisionEnter(owner, propio, otro);
+                break;
+            case TipoContacto::Persistencia:
+                script->onCollisionStay(owner, propio, otro);
+                break;
+            case TipoContacto::Fin:
+                script->onCollisionExit(owner, propio, otro);
+                break;
+        }
+    });
 }

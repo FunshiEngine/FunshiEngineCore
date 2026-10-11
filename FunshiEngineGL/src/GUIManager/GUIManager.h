@@ -34,6 +34,7 @@
 #include "../GUI/SceneGUI/SceneMenuBarInterface.h"
 #include "../GUI/DockSpaceGUI/DockSpaceInterface.h"
 #include "../GUI/Estado/StatusBarInterface.h"
+#include "../GUI/Terminal/TerminalInterface.h"
 #include "../GUI/CreadorUI/CreadorDeInterfaces.h"
 #include "../GUI/CreadorUI/CanvasInterface.h"
 #include "../Herramientas/IconosGUI/IconosGUI.h"
@@ -71,6 +72,7 @@ private:
 	EditorController* editor = nullptr;
 	std::unique_ptr<ContentFolderInterface> contentOfThisFolder;
 	std::unique_ptr<StatusBarInterface> statusBarGUI;
+	std::unique_ptr<TerminalInterface> terminalGUI;
 	// Creador de interfaces de usuario (assets JSON) y canvas que las pinta
 	// con su sonido. Ventanas persistentes mas: anclables, alternables desde
 	// el menu "Ventanas" y con estado guardado por proyecto.
@@ -110,6 +112,7 @@ public:
 	DockSpaceInterface* getDockSpaceGUI();
 	IconosGUI* getIconosGUI() noexcept { return iconosGUI.get(); }
 	StatusBarInterface* getStatusBarGUI();
+	TerminalInterface* getTerminalGUI() noexcept { return terminalGUI.get(); }
 
 	// Acceso a las ventanas del sistema de audio + creador de interfaces.
 	CreadorDeInterfaces* getCreadorInterfacesGUI() { return creadorInterfacesGUI.get(); }

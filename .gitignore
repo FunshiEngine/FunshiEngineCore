@@ -95,6 +95,8 @@ install_manifest.txt
 # Build directories
 FunshiEngineGL/build/
 FunshiEngineGL/build_temp/
+FunshiEngineGL/build_cli_msvc/
+FunshiEngineGL/build_terminal_msvc/
 FunshiEngineGL/build-win/
 FunshiEngineGL_BACKUP/
 # Build dirs en la raiz del repo (build-release de desarrollo, build-java, etc.)

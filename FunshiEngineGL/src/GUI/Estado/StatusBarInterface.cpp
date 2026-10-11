@@ -26,6 +26,7 @@
 #include "../../Scenes/SceneRegistry.h"
 #include "../../EngineTime.h"
 #include "../../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
+#include "../../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <cstdio>
 #include <imgui.h>
@@ -158,12 +159,52 @@ void StatusBarInterface::contentGUI() {
         }
     }
 
+    dibujarDiagnosticos();
+
     // Mensaje temporal (progreso de compilacion o exportacion)
     if (!mensajeTemporal_.empty()) {
         ImGui::Separator();
         ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.2f, 1.0f), "%s",
                            mensajeTemporal_.c_str());
     }
+}
+
+void StatusBarInterface::dibujarDiagnosticos() {
+    ImGui::SeparatorText("Consola de estado/log");
+    const auto eventos = RegistroDiagnosticos::global().ultimos(100);
+    if (eventos.empty()) {
+        ImGui::TextDisabled("No hay diagnósticos registrados");
+        return;
+    }
+
+    const bool mostrarContenido =
+        ImGui::BeginChild("DiagnosticosRecientes", ImVec2(0.0f, 220.0f), true);
+    if (mostrarContenido) {
+        for (std::size_t i = 0; i < eventos.size(); ++i) {
+            const EventoDiagnostico& evento = eventos[i];
+            ImGui::PushID(static_cast<int>(i));
+            const std::string nivel =
+                RegistroDiagnosticos::nombreNivel(evento.nivel);
+            ImVec4 color(0.82f, 0.84f, 0.88f, 1.0f);
+            if (evento.nivel == NivelDiagnostico::Advertencia)
+                color = ImVec4(1.0f, 0.72f, 0.24f, 1.0f);
+            else if (evento.nivel == NivelDiagnostico::Error ||
+                     evento.nivel == NivelDiagnostico::Critico)
+                color = ImVec4(1.0f, 0.35f, 0.32f, 1.0f);
+            ImGui::TextColored(color, "[%s] [%s] %s", evento.fechaUtc.c_str(),
+                               nivel.c_str(), evento.modulo.c_str());
+            ImGui::TextWrapped("%s", evento.mensaje.c_str());
+            if (!evento.proyecto.empty())
+                ImGui::TextDisabled("Proyecto: %s", evento.proyecto.c_str());
+            if (!evento.traza.empty() && ImGui::TreeNode("Traza")) {
+                ImGui::TextWrapped("%s", evento.traza.c_str());
+                ImGui::TreePop();
+            }
+            ImGui::Separator();
+            ImGui::PopID();
+        }
+    }
+    ImGui::EndChild();
 }
 
 void StatusBarInterface::printGUI() {

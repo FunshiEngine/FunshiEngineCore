@@ -1,0 +1,396 @@
+/*
+    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    Copyright 2026 Gianfranco Ivan Enrique
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+    SPDX-License-Identifier: Apache-2.0
+*/
+#if defined(_WIN32)
+#define _HAS_STD_BYTE 0
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#else
+#include <pty.h>
+#include <signal.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
+#include "TerminalSession.h"
+
+#include <algorithm>
+#include <atomic>
+#include <cerrno>
+#include <climits>
+#include <cstring>
+#include <filesystem>
+#include <mutex>
+#include <thread>
+#include <vector>
+
+namespace {
+constexpr std::size_t kMaxSalida = 1024 * 1024;
+
+void agregarSalida(std::mutex& mutex, std::string& destino,
+                   const char* datos, std::size_t cantidad) {
+    std::lock_guard<std::mutex> bloqueo(mutex);
+    destino.append(datos, cantidad);
+    if (destino.size() > kMaxSalida)
+        destino.erase(0, destino.size() - kMaxSalida);
+}
+
+#if defined(_WIN32)
+std::wstring convertirAncho(const std::string& texto) {
+    if (texto.empty()) return {};
+    const int cantidad = MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, texto.data(),
+        static_cast<int>(texto.size()), nullptr, 0);
+    if (cantidad <= 0) return {};
+    std::wstring resultado(static_cast<std::size_t>(cantidad), L'\0');
+    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, texto.data(),
+                        static_cast<int>(texto.size()), &resultado[0], cantidad);
+    return resultado;
+}
+#endif
+} // namespace
+
+struct TerminalSession::Impl {
+    mutable std::mutex mutexSalida;
+    std::string salida;
+    std::atomic<bool> activa{false};
+    std::thread hiloLectura;
+#if defined(_WIN32)
+    HANDLE entrada = INVALID_HANDLE_VALUE;
+    HANDLE salidaPipe = INVALID_HANDLE_VALUE;
+    HANDLE proceso = nullptr;
+    HANDLE trabajo = nullptr;
+    HPCON pseudoconsola = nullptr;
+#else
+    int terminal = -1;
+    pid_t proceso = -1;
+#endif
+
+    void leer() {
+        char bloque[4096];
+        while (activa.load(std::memory_order_acquire)) {
+#if defined(_WIN32)
+            DWORD leidos = 0;
+            if (!ReadFile(salidaPipe, bloque, sizeof(bloque), &leidos, nullptr) ||
+                leidos == 0) break;
+            agregarSalida(mutexSalida, salida, bloque, leidos);
+#else
+            const ssize_t leidos = ::read(terminal, bloque, sizeof(bloque));
+            if (leidos > 0) {
+                agregarSalida(mutexSalida, salida, bloque,
+                              static_cast<std::size_t>(leidos));
+            } else if (leidos < 0 && errno == EINTR) {
+                continue;
+            } else {
+                break;
+            }
+#endif
+        }
+        activa.store(false, std::memory_order_release);
+    }
+};
+
+TerminalSession::TerminalSession() : impl_(std::make_unique<Impl>()) {}
+
+TerminalSession::~TerminalSession() { detener(); }
+
+bool TerminalSession::iniciar(const std::string& shell,
+                              const std::string& directorio,
+                              unsigned columnas, unsigned filas,
+                              std::string& error) {
+    detener();
+    if (shell.empty() || directorio.empty()) {
+        error = "La shell y el directorio de trabajo son obligatorios";
+        return false;
+    }
+    std::error_code errorRuta;
+    if (!std::filesystem::is_directory(std::filesystem::u8path(directorio), errorRuta)) {
+        error = "El directorio del proyecto no está disponible";
+        return false;
+    }
+    columnas = std::max(1u, columnas);
+    filas = std::max(1u, filas);
+
+#if defined(_WIN32)
+    SECURITY_ATTRIBUTES seguridad{};
+    seguridad.nLength = sizeof(seguridad);
+    seguridad.bInheritHandle = FALSE;
+    HANDLE entradaLectura = INVALID_HANDLE_VALUE;
+    HANDLE salidaEscritura = INVALID_HANDLE_VALUE;
+    HANDLE entradaEscritura = INVALID_HANDLE_VALUE;
+    HANDLE salidaLectura = INVALID_HANDLE_VALUE;
+    if (!CreatePipe(&entradaLectura, &entradaEscritura, &seguridad, 0) ||
+        !CreatePipe(&salidaLectura, &salidaEscritura, &seguridad, 0)) {
+        error = "No se pudieron crear los canales de ConPTY";
+        goto fallo_windows;
+    }
+    SetHandleInformation(entradaEscritura, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(salidaLectura, HANDLE_FLAG_INHERIT, 0);
+
+    {
+        const COORD tamano{static_cast<SHORT>(std::min(columnas, 32767u)),
+                           static_cast<SHORT>(std::min(filas, 32767u))};
+        const HRESULT creado = CreatePseudoConsole(
+            tamano, entradaLectura, salidaEscritura, 0,
+            &impl_->pseudoconsola);
+        if (FAILED(creado)) {
+            error = "ConPTY no está disponible en este Windows";
+            goto fallo_windows;
+        }
+    }
+    {
+        SIZE_T bytesAtributos = 0;
+        InitializeProcThreadAttributeList(nullptr, 1, 0, &bytesAtributos);
+        std::vector<unsigned char> almacenamiento(bytesAtributos);
+        auto* atributos = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(
+            almacenamiento.data());
+        if (!InitializeProcThreadAttributeList(atributos, 1, 0,
+                                              &bytesAtributos)) {
+            error = "No se pudo preparar el inicio de la shell ConPTY";
+            goto fallo_windows;
+        }
+        if (!UpdateProcThreadAttribute(
+                atributos, 0, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
+                impl_->pseudoconsola, sizeof(impl_->pseudoconsola), nullptr,
+                nullptr)) {
+            DeleteProcThreadAttributeList(atributos);
+            error = "No se pudo asociar la shell a ConPTY";
+            goto fallo_windows;
+        }
+
+        std::wstring ejecutable = convertirAncho(shell);
+        if (ejecutable.find_first_of(L"/\\") == std::wstring::npos) {
+            std::vector<wchar_t> rutaEjecutable(32768, L'\0');
+            const DWORD longitud = SearchPathW(nullptr, ejecutable.c_str(), nullptr,
+                                               static_cast<DWORD>(rutaEjecutable.size()),
+                                               rutaEjecutable.data(), nullptr);
+            if (longitud == 0 || longitud >= rutaEjecutable.size()) {
+                error = "No se encontro el ejecutable de la shell";
+                DeleteProcThreadAttributeList(atributos);
+                goto fallo_windows;
+            }
+            ejecutable.assign(rutaEjecutable.data(), longitud);
+        }
+        std::wstring directorioAncho = convertirAncho(directorio);
+        std::wstring linea = L"\"" + ejecutable + L"\"";
+        if (shell == "cmd.exe") linea += L" /Q";
+        else if (shell == "powershell.exe") linea += L" -NoLogo -NoExit";
+        else if (shell == "pwsh.exe") linea += L" -NoLogo -NoExit";
+        STARTUPINFOEXW inicio{};
+        inicio.StartupInfo.cb = sizeof(inicio);
+        inicio.lpAttributeList = atributos;
+        PROCESS_INFORMATION info{};
+        const BOOL iniciado = CreateProcessW(
+            nullptr, &linea[0], nullptr, nullptr, FALSE,
+            EXTENDED_STARTUPINFO_PRESENT, nullptr, directorioAncho.c_str(),
+            &inicio.StartupInfo, &info);
+        DeleteProcThreadAttributeList(atributos);
+        if (!iniciado) {
+            error = "No se pudo iniciar la shell solicitada";
+            goto fallo_windows;
+        }
+        CloseHandle(entradaLectura);
+        entradaLectura = INVALID_HANDLE_VALUE;
+        CloseHandle(salidaEscritura);
+        salidaEscritura = INVALID_HANDLE_VALUE;
+        CloseHandle(info.hThread);
+        impl_->trabajo = CreateJobObjectW(nullptr, nullptr);
+        if (!impl_->trabajo) {
+            error = "No se pudo crear el grupo de procesos de la shell";
+            TerminateProcess(info.hProcess, 1);
+            CloseHandle(info.hProcess);
+            goto fallo_windows;
+        }
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION limites{};
+        limites.BasicLimitInformation.LimitFlags =
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        if (!SetInformationJobObject(impl_->trabajo,
+                                     JobObjectExtendedLimitInformation,
+                                     &limites, sizeof(limites)) ||
+            !AssignProcessToJobObject(impl_->trabajo, info.hProcess)) {
+            error = "No se pudo asociar la shell a su grupo de procesos";
+            TerminateProcess(info.hProcess, 1);
+            CloseHandle(info.hProcess);
+            CloseHandle(impl_->trabajo);
+            impl_->trabajo = nullptr;
+            goto fallo_windows;
+        }
+        impl_->proceso = info.hProcess;
+    }
+    impl_->entrada = entradaEscritura;
+    impl_->salidaPipe = salidaLectura;
+    impl_->activa.store(true, std::memory_order_release);
+    impl_->hiloLectura = std::thread([this] { impl_->leer(); });
+    return true;
+
+fallo_windows:
+    if (entradaLectura != INVALID_HANDLE_VALUE) CloseHandle(entradaLectura);
+    if (entradaEscritura != INVALID_HANDLE_VALUE) CloseHandle(entradaEscritura);
+    if (salidaLectura != INVALID_HANDLE_VALUE) CloseHandle(salidaLectura);
+    if (salidaEscritura != INVALID_HANDLE_VALUE) CloseHandle(salidaEscritura);
+    if (impl_->pseudoconsola) {
+        ClosePseudoConsole(impl_->pseudoconsola);
+        impl_->pseudoconsola = nullptr;
+    }
+    return false;
+#else
+    if (::access(shell.c_str(), X_OK) != 0) {
+        error = "La shell seleccionada no está instalada: " + shell;
+        return false;
+    }
+    struct winsize tamano{};
+    tamano.ws_col = static_cast<unsigned short>(
+        std::min(columnas, static_cast<unsigned>(USHRT_MAX)));
+    tamano.ws_row = static_cast<unsigned short>(
+        std::min(filas, static_cast<unsigned>(USHRT_MAX)));
+    const pid_t hijo = forkpty(&impl_->terminal, nullptr, nullptr, &tamano);
+    if (hijo < 0) {
+        error = "No se pudo crear el pseudo-terminal: " +
+                std::string(std::strerror(errno));
+        return false;
+    }
+    if (hijo == 0) {
+        if (::chdir(directorio.c_str()) != 0) _exit(126);
+        char* argumentos[] = {const_cast<char*>(shell.c_str()),
+                              const_cast<char*>("-i"), nullptr};
+        ::execvp(argumentos[0], argumentos);
+        static constexpr char mensaje[] =
+            "No se pudo iniciar la shell seleccionada\n";
+        ::write(STDERR_FILENO, mensaje, sizeof(mensaje) - 1);
+        _exit(127);
+    }
+    impl_->proceso = hijo;
+    impl_->activa.store(true, std::memory_order_release);
+    impl_->hiloLectura = std::thread([this] { impl_->leer(); });
+    return true;
+#endif
+}
+
+bool TerminalSession::escribir(const std::string& texto) {
+    if (!impl_->activa.load(std::memory_order_acquire)) return false;
+#if defined(_WIN32)
+    std::size_t offset = 0;
+    while (offset < texto.size()) {
+        DWORD escritos = 0;
+        const DWORD cantidad = static_cast<DWORD>(std::min<std::size_t>(
+            texto.size() - offset, static_cast<std::size_t>(MAXDWORD)));
+        if (!WriteFile(impl_->entrada, texto.data() + offset, cantidad,
+                       &escritos, nullptr) || escritos == 0)
+            return false;
+        offset += escritos;
+    }
+    return true;
+#else
+    std::size_t offset = 0;
+    while (offset < texto.size()) {
+        const ssize_t escritos = ::write(impl_->terminal, texto.data() + offset,
+                                         texto.size() - offset);
+        if (escritos < 0 && errno == EINTR) continue;
+        if (escritos <= 0) return false;
+        offset += static_cast<std::size_t>(escritos);
+    }
+    return true;
+#endif
+}
+
+void TerminalSession::redimensionar(unsigned columnas, unsigned filas) {
+    columnas = std::max(1u, columnas);
+    filas = std::max(1u, filas);
+#if defined(_WIN32)
+    if (impl_->pseudoconsola) {
+        const COORD tamano{static_cast<SHORT>(std::min(columnas, 32767u)),
+                           static_cast<SHORT>(std::min(filas, 32767u))};
+        ResizePseudoConsole(impl_->pseudoconsola, tamano);
+    }
+#else
+    if (impl_->terminal >= 0) {
+        struct winsize tamano{};
+        tamano.ws_col = static_cast<unsigned short>(
+            std::min(columnas, static_cast<unsigned>(USHRT_MAX)));
+        tamano.ws_row = static_cast<unsigned short>(
+            std::min(filas, static_cast<unsigned>(USHRT_MAX)));
+        ioctl(impl_->terminal, TIOCSWINSZ, &tamano);
+    }
+#endif
+}
+
+std::string TerminalSession::leerSalida() {
+    std::lock_guard<std::mutex> bloqueo(impl_->mutexSalida);
+    std::string resultado;
+    resultado.swap(impl_->salida);
+    return resultado;
+}
+
+bool TerminalSession::estaActiva() const {
+    return impl_->activa.load(std::memory_order_acquire);
+}
+
+void TerminalSession::detener() {
+#if defined(_WIN32)
+    if (impl_->pseudoconsola) {
+        ClosePseudoConsole(impl_->pseudoconsola);
+        impl_->pseudoconsola = nullptr;
+    }
+    if (impl_->entrada != INVALID_HANDLE_VALUE) {
+        CloseHandle(impl_->entrada);
+        impl_->entrada = INVALID_HANDLE_VALUE;
+    }
+    if (impl_->salidaPipe != INVALID_HANDLE_VALUE) {
+        CloseHandle(impl_->salidaPipe);
+        impl_->salidaPipe = INVALID_HANDLE_VALUE;
+    }
+    impl_->activa.store(false, std::memory_order_release);
+    if (impl_->hiloLectura.joinable()) impl_->hiloLectura.join();
+    if (impl_->proceso) {
+        if (WaitForSingleObject(impl_->proceso, 2000) == WAIT_TIMEOUT &&
+            impl_->trabajo) {
+            TerminateJobObject(impl_->trabajo, 1);
+            WaitForSingleObject(impl_->proceso, INFINITE);
+        }
+        CloseHandle(impl_->proceso);
+        impl_->proceso = nullptr;
+    }
+    if (impl_->trabajo) {
+        CloseHandle(impl_->trabajo);
+        impl_->trabajo = nullptr;
+    }
+#else
+    impl_->activa.store(false, std::memory_order_release);
+    if (impl_->proceso > 0) kill(-impl_->proceso, SIGHUP);
+    if (impl_->terminal >= 0) {
+        ::close(impl_->terminal);
+        impl_->terminal = -1;
+    }
+    if (impl_->hiloLectura.joinable()) impl_->hiloLectura.join();
+    if (impl_->proceso > 0) {
+        int estado = 0;
+        pid_t resultado = waitpid(impl_->proceso, &estado, WNOHANG);
+        if (resultado == 0) {
+            kill(-impl_->proceso, SIGKILL);
+            waitpid(impl_->proceso, &estado, 0);
+        }
+        impl_->proceso = -1;
+    }
+#endif
+}

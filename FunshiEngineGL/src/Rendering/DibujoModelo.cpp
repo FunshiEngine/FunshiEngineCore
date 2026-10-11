@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "DibujoModelo.h"
+#include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <exception>
 #include <iostream>
@@ -49,6 +50,8 @@ DibujoModelo resolverDibujoModelo(GameObject* objeto, AssetManager& assets) {
     } catch (const std::exception& e) {
         // Una ruta que no se puede importar (script asignado por error, archivo
         // movido) no debe tumbar el editor: se avisa y el objeto no se dibuja.
+        registrarExcepcionDiagnostica("Rendering/DibujoModelo", e,
+                                      NivelDiagnostico::Error);
         std::cerr << "[Model] no se pudo cargar la malla '" << path
                   << "': " << e.what() << std::endl;
         return resultado;

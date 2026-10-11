@@ -408,6 +408,13 @@ Reglas:
   y convencionales (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`). El
   formato completo, con los tipos admitidos, los ámbitos frecuentes y las
   reglas de redacción, está en `.github/COMMIT_TEMPLATE.md`.
+- **Commits de funcionalidades grandes incompletas**: si se crea un commit
+  para guardar una funcionalidad grande que todavía no está terminada o
+  validada, el cuerpo del mensaje debe detallar explícitamente las
+  insuficiencias: qué partes faltan, qué validaciones se realizaron y cuáles
+  siguen pendientes, y qué limita su cierre. El asunto y el cuerpo no deben
+  presentar la funcionalidad como completa; actualizar el estado cuando se
+  integre o valide lo pendiente.
 - **Sin atribuciones ajenas al cambio**: los mensajes de commit (y cualquier
   metadato asociado) deben describir únicamente la implementación o los
   cambios realizados. No se permite adjudicar coautoría, autoría, firmas ni
