@@ -174,7 +174,7 @@ CatalogoComponentes::CatalogoComponentes() {
     auto exigeTransform = [](GameObject& o) {
         return o.getComponent<Transform>() != nullptr;
     };
-    add("EsfereCollider", "EsfereCollider", DimensionesComponente::TresD,
+    add("EsfereCollider", "EsfereCollider", DimensionesComponente::Ambas,
         kSubmenuColliders,
         [](GameObject& o) -> std::unique_ptr<Component> {
             Transform* t = o.getComponent<Transform>();
@@ -187,7 +187,7 @@ CatalogoComponentes::CatalogoComponentes() {
             return std::unique_ptr<SettingsComponent>(s);
         },
         exigeTransform);
-    add("CubeCollider", "CubeCollider", DimensionesComponente::TresD,
+    add("CubeCollider", "CubeCollider", DimensionesComponente::Ambas,
         kSubmenuColliders,
         [](GameObject& o) -> std::unique_ptr<Component> {
             Transform* t = o.getComponent<Transform>();
@@ -213,7 +213,7 @@ CatalogoComponentes::CatalogoComponentes() {
             return std::unique_ptr<SettingsComponent>(s);
         },
         exigeTransform);
-    add("RigidBody", "RigidBody", DimensionesComponente::TresD, "",
+    add("RigidBody", "RigidBody", DimensionesComponente::Ambas, "",
         [](GameObject& o) -> std::unique_ptr<Component> {
             Collider* col = o.getComponent<Collider>();
             if (!col) return nullptr;

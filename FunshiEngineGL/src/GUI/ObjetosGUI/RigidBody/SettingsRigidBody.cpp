@@ -34,6 +34,9 @@ void SettingsRigidBody::setEditor(EditorController* editor) {
 void SettingsRigidBody::showDataComponent() {
 	bool activo = myCollider->estaActivo();
 	if (ImGui::Checkbox("Activo", &activo)) myCollider->setActivo(activo);
+	bool sensor = myCollider->esSensor();
+	if (ImGui::Checkbox("Sensor (trigger)", &sensor))
+		myCollider->fijarSensor(sensor);
 	float masa = myCollider->masa();
 	if (ImGui::DragFloat("Masa", &masa, 0.1f, 0.0f, 100.0f)) {
 		const bool eraEstatico = myCollider->masa() == 0.0f;

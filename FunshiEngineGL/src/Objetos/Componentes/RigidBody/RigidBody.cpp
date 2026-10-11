@@ -28,7 +28,7 @@
 
 namespace {
 constexpr std::uint32_t kRigidBodyMagic = 0x32444252;
-constexpr std::uint32_t kRigidBodyVersion = 2;
+constexpr std::uint32_t kRigidBodyVersion = 3;
 }
 
 RigidBody::RigidBody(Collider* collider, float mass)
@@ -112,6 +112,15 @@ void RigidBody::aplicarPropiedades() {
     rigidBody->setAngularFactor(btVector3(freezeRot[0] ? 0.0f : 1.0f,
                                           freezeRot[1] ? 0.0f : 1.0f,
                                           freezeRot[2] ? 0.0f : 1.0f));
+    // Sensor: sin respuesta de contacto (el cuerpo se atraviesa). La
+    // generacion de manifolds no depende de este flag, asi que los eventos de
+    // colision se siguen reportando en el stepSimulation.
+    int collisionFlags = rigidBody->getCollisionFlags();
+    if (sensor)
+        collisionFlags |= btCollisionObject::CF_NO_CONTACT_RESPONSE;
+    else
+        collisionFlags &= ~btCollisionObject::CF_NO_CONTACT_RESPONSE;
+    rigidBody->setCollisionFlags(collisionFlags);
     if (!usarGravedad) {
         rigidBody->setGravity(btVector3(0.0f, 0.0f, 0.0f));
         return;
@@ -343,6 +352,20 @@ void RigidBody::fijarFreezeRotacion(bool x, bool y, bool z) {
     aplicarPropiedades();
 }
 
+void RigidBody::fijarRestricciones2D() {
+    // Solo agrega las restricciones del plano: conserva los freeze que el
+    // usuario haya fijado en el resto de los ejes.
+    freezePos[2] = true;
+    freezeRot[0] = true;
+    freezeRot[1] = true;
+    aplicarPropiedades();
+}
+
+void RigidBody::fijarSensor(bool esSensor) {
+    sensor = esSensor;
+    aplicarPropiedades();
+}
+
 void RigidBody::aplicarGravedadMundo(float x, float y, float z) {
     if (std::isfinite(x)) gravedadMundo[0] = x;
     if (std::isfinite(y)) gravedadMundo[1] = y;
@@ -389,6 +412,9 @@ void RigidBody::serializeComponent(std::ofstream* fileNamePathContentObject) {
                                      sizeof(bool) * 3);
     fileNamePathContentObject->write(reinterpret_cast<const char*>(freezeRot),
                                      sizeof(bool) * 3);
+    // v3: sensor/trigger (detecta sin respuesta fisica).
+    fileNamePathContentObject->write(reinterpret_cast<const char*>(&sensor),
+                                     sizeof(sensor));
     // Tambien deberia guardar el tipo de collider para reconstruirlo al cargar
 }
 
@@ -403,7 +429,7 @@ void RigidBody::deserializeComponent(std::ifstream* fileNamePathContentObject) {
                                         sizeof(version));
         fileNamePathContentObject->read(reinterpret_cast<char*>(&activo),
                                         sizeof(activo));
-        if (version != 1 && version != kRigidBodyVersion) {
+        if (version < 1 || version > kRigidBodyVersion) {
             fileNamePathContentObject->setstate(std::ios::failbit);
             return;
         }
@@ -423,6 +449,7 @@ void RigidBody::deserializeComponent(std::ifstream* fileNamePathContentObject) {
             friccionCuerpo = 0.5f;
             freezePos[0] = freezePos[1] = freezePos[2] = false;
             freezeRot[0] = freezeRot[1] = freezeRot[2] = false;
+            sensor = false;
             return;
         }
         fileNamePathContentObject->read(reinterpret_cast<char*>(&usarGravedad),
@@ -435,6 +462,11 @@ void RigidBody::deserializeComponent(std::ifstream* fileNamePathContentObject) {
                                         sizeof(bool) * 3);
         fileNamePathContentObject->read(reinterpret_cast<char*>(freezeRot),
                                         sizeof(bool) * 3);
+        // v3 agrega el flag de sensor; una escena v2 lo deja en falso.
+        sensor = false;
+        if (version >= 3)
+            fileNamePathContentObject->read(reinterpret_cast<char*>(&sensor),
+                                            sizeof(sensor));
         return;
     }
     fileNamePathContentObject->clear();
@@ -453,4 +485,5 @@ void RigidBody::deserializeComponent(std::ifstream* fileNamePathContentObject) {
     friccionCuerpo = 0.5f;
     freezePos[0] = freezePos[1] = freezePos[2] = false;
     freezeRot[0] = freezeRot[1] = freezeRot[2] = false;
+    sensor = false;
 }
