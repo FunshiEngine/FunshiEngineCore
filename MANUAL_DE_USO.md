@@ -556,7 +556,28 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 2. Arrástralo y suéltalo sobre el **panel Prefab del Inspector** (donde está el
    botón "Guardar como prefab" / "Instanciar prefab").
 3. La instancia se crea como hijo del objeto seleccionado (o en la raíz si no
-   hay selección) y se selecciona automáticamente.
+    hay selección) y se selecciona automáticamente.
+
+ **Crear y pintar un Tilemap:**
+
+ 1. **Prepara el tileset**: un archivo `.json` estilo Tiled con campos
+    `image` (ruta relativa al PNG), `tilewidth`/`tileheight`, `imagewidth`/
+    `imageheight`, `margin`/`spacing` opcionales, y `tiles[]` con propiedad
+    `solid: true` en los tiles que deben colisionar. Guárdalo en
+    `Assets/Tilesets/`.
+ 2. En la jerarquía: clic derecho → **New GameObject** → con el objeto
+    seleccionado, **Add Component → Tilemap**.
+ 3. En el **panel Tilemap del Inspector**: arrastra el `.json` del tileset al
+    drop zone (valida antes de asignar).
+ 4. Click **Agregar capa** → pon nombre (ej. "Suelo"), dimensiones (ej. 20×15),
+    marca **Colisión** si esa capa debe chocar → **OK**.
+ 5. En la **paleta** verás los IDs de tile (fondo rojo = sólido). Click en un
+    ID → se vuelve el pincel activo.
+ 6. **Click izquierdo** en la grilla → pinta el tile; **click derecho** → borra.
+    Puedes cambiar de capa y pincel a voluntad.
+ 7. Para colisión física: **Add Component → TilemapCollider** (requiere Tilemap
+    en el mismo objeto) → en su panel click **Recargar colisión** (reconstruye
+    las cajas desde los tiles sólidos actuales).
 
 ---
 
