@@ -19,10 +19,12 @@
 #ifndef EDITOR_CONTROLLER_H
 #define EDITOR_CONTROLLER_H
 
+#include <functional>
 #include <memory>
 #include <vector>
 
 #include "Comandos/GestorComandos.h"
+#include "../Configuracion/DimensionProyecto.h"
 
 class Component;
 class GameObject;
@@ -74,6 +76,11 @@ private:
     // seleccion o borrar objetos.
     GizmoTarget gizmoTarget;
 
+    // Proveedor de la dimension del proyecto (lo inyecta GameScene, que es
+    // quien la conoce). Se usa para restringir los cuerpos al plano cuando el
+    // proyecto es 2D, reutilizando el freeze por ejes del RigidBody.
+    std::function<DimensionProyecto()> dimensionProvider;
+
     // Guia de eje activa: 0 = X, 1 = Y, 2 = Z, -1 = ninguna. Es la fuente de
     // verdad compartida por los tres consumidores de la funcionalidad:
     // el input (X/Y/Z la alternan), el gizmo (mientras haya guia NO se dibuja,
@@ -87,6 +94,9 @@ private:
     // Biblioteca de prefabs (deleter definido en .cpp para evitar incluir header)
     std::unique_ptr<PrefabLibrary, PrefabLibraryDeleter> prefabLibrary;
 
+    // true si el proyecto actual es 2D, segun el proveedor inyectado.
+    bool proyectoEs2D() const;
+
 public:
     EditorController(SceneRegistry* scene, PhysicsEngine* physics = nullptr,
                      EventBus* events = nullptr,
@@ -94,6 +104,9 @@ public:
 
     void setScene(SceneRegistry* scene) noexcept;
     SceneRegistry* getScene() const noexcept { return scene; }
+    // Inyecta el proveedor de dimension (GameScene). Sin el, el controlador
+    // asume 3D y no restringe ningun eje.
+    void setDimensionProvider(std::function<DimensionProyecto()> provider);
     void setPhysics(PhysicsEngine* physics) noexcept;
     void setEventBus(EventBus* events) noexcept;
     void setAssetManager(AssetManager* assetsManager) noexcept;
