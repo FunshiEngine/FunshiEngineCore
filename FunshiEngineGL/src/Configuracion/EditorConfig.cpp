@@ -267,6 +267,7 @@ void EditorConfig::cargarProyecto(const std::string& nombreProyecto,
     datos_.gizmoOperacion = p.gizmoOperacion;
     datos_.gizmoGlobal = p.gizmoGlobal;
     datos_.camaraActivaId = p.camaraActivaId;
+    datos_.dimension = p.dimension;
     // Se asigna entero (y no se fusiona) para que entrar a un proyecto sin
     // configuracion arranque en defaults en lugar de heredar los del anterior.
     datos_.estadoVentanas = p.estadoVentanas;
@@ -311,6 +312,7 @@ void EditorConfig::guardarProyecto(const std::string& nombreProyecto,
     p.gizmoOperacion = datos_.gizmoOperacion;
     p.gizmoGlobal = datos_.gizmoGlobal;
     p.camaraActivaId = datos_.camaraActivaId;
+    p.dimension = datos_.dimension;
     p.estadoVentanas = datos_.estadoVentanas;
 
     ConfigPersistence::guardarProyecto(p, nombreProyecto, ruta);

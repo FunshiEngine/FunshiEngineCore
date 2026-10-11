@@ -523,6 +523,9 @@ static int EjecutarMotor(int argc, char* argv[])
 
     const std::string sceneBBDD = EditorConfig::rutaSceneBBDD(gestor.proyectoActual());
     const std::string sceneDir = EditorConfig::rutaSceneDir(gestor.proyectoActual());
+    // La dimension del proyecto se fija ANTES de cargar la escena: la siembra
+    // de la grilla y la posicion de la camara inicial dependen de ella.
+    scene->setDimension(editorConfig.datos().dimension);
     scene->loadScene(sceneBBDD, sceneDir);
 
      // Restaura la camara activa elegida con "Usar" (persistida por id). Si el

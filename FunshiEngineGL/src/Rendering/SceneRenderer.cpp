@@ -202,7 +202,14 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     lineRenderer().setViewport(viewportAncho, viewportAlto);
     const Difuminado horizonte =
         Difuminado::desdeRadio(radioDifuminado(ctx), 1);
-    lineRenderer().setHorizonteVisual(horizonte.inicio, horizonte.fin);
+    if (ctx.modo2D) {
+        // En 2D la vista es ortografica y mira el plano XY de frente: no hay
+        // horizonte de piso que difuminar. Se fija el rango completo para que
+        // la grilla/lineas no se apaguen por distancia.
+        lineRenderer().setHorizonteVisual(0.0f, 1.0e9f);
+    } else {
+        lineRenderer().setHorizonteVisual(horizonte.inicio, horizonte.fin);
+    }
 
     // Posicion de la camara en el mundo a partir de su matriz de vista:
     // view = [R | t] (column-major), ojo = -(R^T * t). La usa la grilla para
@@ -218,15 +225,20 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     // Cielo degradado: primera pasada, con depth test on + depth mask off para
     // que quede "detras" de todo sin escribir en el z-buffer. Recibe la
     // posicion de camara en el mundo (ya calculada arriba) porque el color del
-    // cielo sale de la direccion de vista, no de la posicion del pixel.
-    dibujarCielo(ctx, view, projection, camaraMundo);
+    // cielo sale de la direccion de vista, no de la posicion del pixel. En 2D
+    // se omite: el fondo del plano de juego es el color de limpieza.
+    if (!ctx.modo2D) dibujarCielo(ctx, view, projection, camaraMundo);
 
     // La grilla se dibuja como una pasada independiente del renderer de
     // modelos: no depende de Modelos3D ni del recorrido normal de las
     // entidades.
     dibujarGrillaEditor(ctx, camaraMundo);
     if (meshRenderer_) {
-        meshRenderer_->setHorizonteVisual(horizonte.inicio, horizonte.fin);
+        if (ctx.modo2D) {
+            meshRenderer_->setHorizonteVisual(0.0f, 1.0e9f);
+        } else {
+            meshRenderer_->setHorizonteVisual(horizonte.inicio, horizonte.fin);
+        }
     }
 
     // Luces de la pasada: van como uniforms del shader (MeshRenderer), que es
@@ -738,10 +750,18 @@ void SceneRenderer::dibujarMarcadorCamara(GameObject* object) {
         std::tan(camara->getFov() * 0.5f * 3.14159265358979f / 180.f);
     const float nearDist = camara->getNearPlane();
     const float farDist = camara->getFarPlane();
-    const float halfHNear = tanHalf * nearDist;
-    const float halfWNear = halfHNear * aspect;
-    const float halfHFar = tanHalf * farDist;
-    const float halfWFar = halfHFar * aspect;
+    // En perspectiva el frustum se abre con la distancia (escalado por tanHalf);
+    // en ortografica es una caja de media altura orthoSize constante.
+    const bool ortografica =
+        camara->getProjection() == CameraComponent::Projection::Orthographic;
+    const float halfHNear = ortografica ? camara->getOrthoSize()
+                                        : tanHalf * nearDist;
+    const float halfWNear = ortografica ? camara->getOrthoSize() * aspect
+                                        : halfHNear * aspect;
+    const float halfHFar = ortografica ? camara->getOrthoSize()
+                                       : tanHalf * farDist;
+    const float halfWFar = ortografica ? camara->getOrthoSize() * aspect
+                                       : halfHFar * aspect;
 
     // Frustum: 4 esquinas del plano near (0..3) + 4 del far (4..7). Los 12
     // bordes de "edges" indexan los 8 puntitos, por eso todo vive en un solo

@@ -28,23 +28,9 @@
 #include "Backend/IRenderBackend.h"
 #include "LineBatch.h"
 #include "LineBuilder.h"
+#include "ProyeccionCamara.h"
 #include "Shaders/ShaderProgram.h"
 #include "Shaders/ShaderSources.h"
-
-namespace {
-
-// Distancia al plano cercano a partir de la matriz de proyeccion de la GL:
-// con m[2][2] = -(f+n)/(f-n) y m[2][3] = -2fn/(f-n) sale n = m23/(m22-1).
-// La usa el shader para recortar los segmentos contra el plano cercano.
-float nearDesdeProyeccion(const glm::mat4& p) {
-    const float den = p[2][2] - 1.0f;
-    if (std::fabs(den) < 1e-6f) return 0.01f;
-    const float near = p[2][3] / den;
-    if (!std::isfinite(near) || near <= 0.0f) return 0.01f;
-    return near;
-}
-
-} // namespace
 
 LineRenderer::LineRenderer() = default;
 
@@ -110,7 +96,8 @@ bool LineRenderer::preparar(const float model[16], float anchoPx) {
                                static_cast<float>(viewportHeight_), 0.0f, 0.0f};
     shader_->setVec4("uViewport", viewport);
     shader_->setFloat("uWidth", anchoPx > 0.0f ? anchoPx : 1.0f);
-    shader_->setFloat("uNear", nearDesdeProyeccion(projection_));
+    shader_->setFloat("uNear", ProyeccionCamara::nearDesdeProyeccion(
+                                     glm::value_ptr(projection_)));
     shader_->setVec3("uCameraPosition", posicionCamara_);
     shader_->setFloat("uDistanceFadeStart", horizonteInicio_);
     shader_->setFloat("uDistanceFadeEnd", horizonteFin_);

@@ -90,6 +90,11 @@ class AssetManager;
         // LOCAL/GLOBAL del gizmo (tecla G): en true la recta sigue el eje del
         // mundo, en false el eje local rotado del objeto.
         bool guiaCoordenadasGlobales = true;
+        // Proyecto 2D: el plano de juego es el XY. La pasada omite el cielo
+        // degradado/cubemap (el fondo queda del color de limpieza) y el
+        // difuminado por distancia (en ortografica el horizonte de la grilla no
+        // aplica: la vista no converge).
+        bool modo2D = false;
     };
 
     // Renderiza las vistas previas y la pasada principal de la escena desde la

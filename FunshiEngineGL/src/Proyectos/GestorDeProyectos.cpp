@@ -43,6 +43,12 @@ void GestorDeProyectos::prepararProyectoAlArrancar() {
     if (proyectoActual_.empty())
         return;
     EditorConfig::asegurarEstructuraProyecto(proyectoActual_);
+    // Recargar la configuracion del proyecto resuelto: al arrancar con
+    // --proyecto la config general solo trae los datos globales, y sin esta
+    // recarga el editor arrancaria con la dimension, estados de ventanas y
+    // gizmo de la config anterior (o con los defaults) en vez de los del
+    // proyecto pedido.
+    config_.cargarProyecto(proyectoActual_);
     gui_->configurarProyecto(proyectoActual_);
     // Audio + interfaces: explora Sonidos/ y apunta el creador a
     // Memory/Interfaces del proyecto (debe correr antes del primer frame).
@@ -89,6 +95,10 @@ void GestorDeProyectos::sincronizarProyectoDesdeMenu() {
     // Renombre literal: solo si Confirmar vino de click derecho
     // (MenuGUI::getProyectoARenombrar). Destino existente = conmutar;
     // destino libre = renombrar la carpeta en disco y luego conmutar.
+    // Elegir/Crear: la intencion (MenuGUI::getAccionProyecto) solo informa
+    // mensajes; la autoridad crear-vs-abrir es la existencia de la carpeta en
+    // disco. Nunca se crea una carpeta que el usuario no pidio crear, y nunca
+    // se pisa la configuracion de un proyecto existente.
     const std::string nombreMenu = menu_->getNombreProyecto();
     if (!nombreMenu.empty() && nombreMenu != proyectoActual_) {
         const std::string aRenombrar = menu_->getProyectoARenombrar();
@@ -123,13 +133,58 @@ void GestorDeProyectos::sincronizarProyectoDesdeMenu() {
                 entrar(nombreMenu);
             }
         } else {
-            guardarEstadoActivo();
-            entrar(nombreMenu);
+            const bool destinoExiste =
+                fs::exists(EditorConfig::directorioProyecto(nombreMenu));
+            const MenuModel::AccionProyecto accion =
+                menu_->getAccionProyecto();
+            const bool esCrear = accion == MenuModel::AccionProyecto::Crear;
+            bool proceder = true;
+            bool crearNuevo = false;
+            if (esCrear && destinoExiste) {
+                // Defensa: el dialogo de creacion ya bloquea nombres repetidos.
+                // Si una carrera creo la carpeta entre medio, no se pisa su
+                // configuracion: se avisa y se abre la existente.
+                std::cerr << "[proyectos] '" << nombreMenu
+                          << "' ya existe: no se crea\n";
+                if (auto* status = gui_->getStatusBarGUI())
+                    status->mostrarMensaje(
+                        "El proyecto ya existe: no se crea uno nuevo");
+            } else if (!destinoExiste && !esCrear) {
+                // Abrir (o un nombre sin accion explicita) hacia una carpeta
+                // inexistente no debe inventar un proyecto nuevo en silencio.
+                std::cerr << "[proyectos] '" << nombreMenu
+                          << "' no existe: no se crea\n";
+                if (auto* status = gui_->getStatusBarGUI())
+                    status->mostrarMensaje(
+                        "El proyecto no existe: no se va a crear");
+                proceder = false;
+            } else if (esCrear) {
+                crearNuevo = true;
+            }
+            if (proceder) {
+                // Guardar el estado del proyecto que se abandona ANTES de tocar
+                // la configuracion en memoria (los datos son compartidos por
+                // ambos proyectos).
+                guardarEstadoActivo();
+                if (crearNuevo) {
+                    // Proyecto nuevo: partir de los defaults de un proyecto sin
+                    // configuracion y persistir la dimension elegida ANTES de
+                    // entrar, para que cargarProyecto no la reemplace con su
+                    // default (3D).
+                    config_.cargarProyecto(nombreMenu);
+                    config_.datos().dimension = menu_->getDimensionProyecto();
+                    config_.guardarProyecto(nombreMenu);
+                }
+                entrar(nombreMenu);
+            }
         }
     } else {
         // Limpiar registro vencido (nombre igual al activo o vacio).
         menu_->limpiarProyectoARenombrar();
     }
+    // La intencion se consume en cada sincronizacion, se convierta o no en
+    // cambio de proyecto (una defensa avisa y no entra).
+    menu_->limpiarAccionProyecto();
 }
 
 void GestorDeProyectos::eliminarProyectoDesdeMenu() {
@@ -274,7 +329,9 @@ void GestorDeProyectos::entrar(const std::string& destino) {
         pendingIniPath_ = io_->IniFilename;
     }
 
-    // Cargar la escena del nuevo proyecto si existe
+    // Cargar la escena del nuevo proyecto si existe. La dimension se fija ANTES
+    // de cargar: la siembra de la grilla y la camara inicial dependen de ella.
+    scene_->setDimension(config_.datos().dimension);
     scene_->loadScene(EditorConfig::rutaSceneBBDD(proyectoActual_),
                       EditorConfig::rutaSceneDir(proyectoActual_));
 

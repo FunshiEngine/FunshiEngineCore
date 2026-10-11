@@ -249,6 +249,9 @@ ConfigPersistence::Proyecto ConfigPersistence::cargarProyecto(const std::string&
             p.gizmoGlobal = ed["gizmoGlobal"].get<bool>();
         if (ed.contains("camaraActivaId") && ed["camaraActivaId"].is_number_integer())
             p.camaraActivaId = ed["camaraActivaId"].get<int>();
+        // Dimension: ausente o no entero -> 3D (proyectos previos al campo).
+        if (ed.contains("dimension") && ed["dimension"].is_number_integer())
+            p.dimension = dimensionProyectoDesdeEntero(ed["dimension"].get<int>());
         if (ed.contains("ventanas") && ed["ventanas"].is_object()) {
             for (auto it = ed["ventanas"].begin(); it != ed["ventanas"].end(); ++it) {
                 if (it.value().is_boolean())
@@ -268,6 +271,7 @@ void ConfigPersistence::guardarProyecto(const Proyecto& p, const std::string& no
     j["editor"]["gizmoOperacion"] = p.gizmoOperacion;
     j["editor"]["gizmoGlobal"] = p.gizmoGlobal;
     j["editor"]["camaraActivaId"] = p.camaraActivaId;
+    j["editor"]["dimension"] = dimensionProyectoAEntero(p.dimension);
     for (const auto& [nombre, abierta] : p.estadoVentanas)
         j["editor"]["ventanas"][nombre] = abierta;
     escribirJson(rutaReal, j);

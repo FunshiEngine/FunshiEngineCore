@@ -116,7 +116,10 @@ bool GizmoController::transformDistinguible(const EstadoTransform& a,
 
 void GizmoController::procesarSeleccion(ImGuiIO& io, CameraComponent* camara,
                                         ListaDE<GameObject*>* objetos) {
-    ImGuizmo::SetOrthographic(false);
+    const bool ortografica =
+        camara &&
+        camara->getProjection() == CameraComponent::Projection::Orthographic;
+    ImGuizmo::SetOrthographic(ortografica);
     ImGuizmo::SetDrawlist(ImGui::GetForegroundDrawList());
     ImGuizmo::SetRect(0.0f, 0.0f, io.DisplaySize.x, io.DisplaySize.y);
     ImGuizmo::BeginFrame();
