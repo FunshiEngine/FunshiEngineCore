@@ -96,6 +96,8 @@ FunshiEngineGL/                          ← raíz del repo
         ├── Assets/                      ← caché Flyweight compartida (meshes e imágenes)
         │   ├── AssetManager.h/.cpp      ← registro de AssetPath→Mesh (loader inyectable)
         │   ├── TextureManager.h/.cpp    ← registro de AssetPath→Image (loader inyectable)
+        │   ├── Tileset.h/.cpp           ← parseo de tilesets estilo Tiled (image, grilla,
+        │   │                                margin/spacing, flag solid) y UV por tile
         │   ├── AssetPath.h / Image.h    ← rutas normalizadas y metadatos de imagen
         │   ├── AssetException.h / TextureException.h ← errores de carga con mensaje y ruta
         │   ├── Mesh.h/.cpp              ← geometría CPU (vértices, normales, índices)
@@ -229,7 +231,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   │                                `inline` puras fuera del dibujo, para que
         │   │   │                                las ejercite un target headless sin ImGui
         │   │   ├── RigidBody/SettingsRigidBody.*
-        │   │   └── Colliders/ (Esfera, Cubo, Malla) ← sync transform/shape con física
+        │   │   └── Colliders/ (Esfera, Cubo, Malla, Tilemap) ← sync transform/shape con física
         │   ├── CreadorUI/                        ← Creador de interfaces (editor de HUD;
         │   │                                      UserInterfaceCustom, JSON en Memory/Interfaces/)
         │   ├── Export/
@@ -260,6 +262,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                  iluminación, horizonte común de grilla/render,
         │   │                                  ejes y gizmos (pipeline de líneas)
         │   ├── MeshRenderer.h/.cpp         ← dibujo de meshes con difuminado radial al horizonte
+        │   ├── TilemapRenderer.h/.cpp      ← sube la malla horneada del Tilemap a GPU (caché
+        │   │                                  por revisión) y la dibuja con el shader de sprites
         │   ├── LineRenderer.h/.cpp         ← líneas, wireframes y gizmos recortados al mismo horizonte
         │   ├── MeshGPU.h/.cpp              ← wrapper RAII de VBO/VAO/EBO
         │   ├── DibujoModelo.h/.cpp         ← helpers de render por modelo
@@ -302,6 +306,10 @@ FunshiEngineGL/                          ← raíz del repo
         │       │                            (los campos tam/separacion quedan solo para que las
         │       │                            escenas viejas se lean igual; no se dibujan con ellos)
         │       ├── Skybox.h/.cpp         ← cubemap de 6 caras que reemplaza al cielo degradado
+        │       ├── SpriteRenderer.h/.cpp ← quad texturizado con UV recortable (planilla/frames)
+        │       ├── Animador2D.h/.cpp     ← anima la region UV del SpriteRenderer sobre una grilla
+        │       ├── Tilemap.h/.cpp        ← capas de tiles (visible/colision), pintado, malla
+        │       │                            horneada cacheada por revision y serial binaria FTM1
         │       ├── Color.h / Model.h / Script.h ← varios scripts por objeto,
         │       │                                    nombre editable y metadatos reflejados
         │       │                                    serializados para el inspector
@@ -311,7 +319,8 @@ FunshiEngineGL/                          ← raíz del repo
         │           │                        con wireframe por el batch de líneas
         │           ├── EsfereCollider.*  ← btSphereShape
         │           ├── CubeCollider.*    ← btBoxShape (half extents = radio)
-        │           └── MallaCollider.*   ← btConvexHullShape a partir de la malla
+        │           ├── MallaCollider.*   ← btConvexHullShape a partir de la malla
+        │           └── TilemapCollider.*  ← btCompoundShape (una caja por tramo de tiles solidos)
         ├── Proyectos/
         │   └── GestorDeProyectos.h/.cpp  ← ciclo de vida del proyecto activo (entrar,
         │                                  guardar estado y escena Ctrl+S, renombrar, eliminar,

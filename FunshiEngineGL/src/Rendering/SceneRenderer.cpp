@@ -38,6 +38,7 @@
 #include "DibujoModelo.h"
 #include "../Objetos/Componentes/Skybox.h"
 #include "../Objetos/Componentes/SpriteRenderer.h"
+#include "../Objetos/Componentes/Tilemap.h"
 
 #include "../Herramientas/IconosGUI/stb_image.h"
 #include "LineBatch.h"
@@ -80,6 +81,7 @@ SceneRenderer::~SceneRenderer() = default;
 void SceneRenderer::setTextureManager(TextureManager* textureManager) noexcept {
     if (meshRenderer_) meshRenderer_->setTextureManager(textureManager);
     spriteRenderer_.setTextureManager(textureManager);
+    tilemapRenderer_.setTextureManager(textureManager);
 }
 
 void SceneRenderer::destruir() {
@@ -101,6 +103,8 @@ void SceneRenderer::destruir() {
     // Malla, shader y texturas del renderer de sprites (mismo criterio: el
     // contexto GL todavia vive).
     spriteRenderer_.destruir();
+    // Mallas horneadas por tilemap, su shader y sus texturas de atlas.
+    tilemapRenderer_.destruir();
 }
 
 // ---------------------------------------------------------------------------
@@ -254,6 +258,10 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     prepararLucesFrame(ctx);
 
     dibujarGameObjectsConOjo(ctx, camaraOjo, view, projection);
+
+    // Tilemaps 2D: fondo del plano de juego; van antes que los sprites para
+    // que estos queden por encima.
+    dibujarTilemaps(ctx, view, projection);
 
     // Sprites 2D: despues de las mallas (que ya escribieron profundidad) y
     // antes de la guia de eje, para que la recta del editor quede por encima.
@@ -763,6 +771,58 @@ void SceneRenderer::dibujarSprites(const FrameContext& ctx, const float view[16]
         draw.tamano = e.sprite->getTamano();
         draw.uvRect = e.sprite->getUvRect();
         spriteRenderer_.dibujar(draw);
+    }
+}
+
+void SceneRenderer::dibujarTilemaps(const FrameContext& ctx,
+                                    const float view[16],
+                                    const float projection[16]) {
+    if (!ctx.gameObjects) return;
+
+    struct Entrada {
+        Tilemap* tilemap = nullptr;
+        float model[16] = {};
+        float z = 0.0f;
+        std::string ruta;
+    };
+    std::vector<Entrada> entradas;
+
+    ListaDE<GameObject*>* gameObjects = ctx.gameObjects;
+    if (!gameObjects || gameObjects->isEmpty()) return;
+
+    Position<GameObject*>* pos = gameObjects->first();
+    while (pos && pos->getElement()) {
+        GameObject* object = pos->getElement();
+        Tilemap* tilemap = object->getComponent<Tilemap>();
+        if (tilemap && !tilemap->mallaHorneada().isEmpty()) {
+            Transform* transform = object->getGlobalTransform();
+            if (transform) {
+                Entrada entrada;
+                entrada.tilemap = tilemap;
+                buildMatrixFromTransform(transform, entrada.model);
+                entrada.z = entrada.model[14];
+                entrada.ruta = tilemap->rutaImagenTileset();
+                entradas.push_back(std::move(entrada));
+            }
+        }
+        pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
+    }
+    if (entradas.empty()) return;
+
+    std::sort(entradas.begin(), entradas.end(),
+              [](const Entrada& a, const Entrada& b) { return a.z < b.z; });
+
+    for (const Entrada& e : entradas) {
+        Rendering::TilemapDraw draw;
+        draw.id = e.tilemap;
+        draw.revision = e.tilemap->revision();
+        draw.malla = &e.tilemap->mallaHorneada();
+        draw.rutaTextura = e.ruta.empty() ? nullptr : e.ruta.c_str();
+        draw.model = e.model;
+        draw.view = view;
+        draw.projection = projection;
+        draw.tint = nullptr;
+        tilemapRenderer_.dibujar(draw);
     }
 }
 

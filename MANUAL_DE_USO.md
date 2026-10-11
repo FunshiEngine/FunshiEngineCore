@@ -250,8 +250,9 @@ seleccion).
   la raíz ya está al nivel superior, así que no hay nada que desenanidar. Clic derecho en
   espacio vacío del panel despliega "New GameObject".
 - **Componentes:** `Transform`, `Color`, `Model`, `Material`, `Light`,
-  `CameraComponent`, `Grid`, `Skybox`, colliders (esfera / cubo / malla),
-  `RigidBody`, `AudioSource`, `InterfaceComponent` y `Script`.
+  `CameraComponent`, `Grid`, `Skybox`, `SpriteRenderer`, `Animador2D`, `Tilemap`,
+  colliders (esfera / cubo / malla / tilemap), `RigidBody`, `AudioSource`,
+  `InterfaceComponent` y `Script`.
 - **Inspector:** boton "Agregar componente" abre el popup de componentes; cada
   uno tiene su panel propio (Transform, Luz con tipo/atenuacion/color, etc.).
 - **Jerarquia:** arrastra un objeto sobre otro en el arbol para reparentar; el
@@ -534,6 +535,7 @@ El explorador de archivos (arbol + grid) emite el payload ImGui
 | Panel **Script** del Inspector | `Script` | path completo del fuente (`std::string`) |
 | Dropdown **Sonido** de AudioSource | `AudioSource` | nombre del clip |
 | Dropdown **Interfaz** de InterfaceComponent | `InterfaceComponent` | nombre del asset JSON |
+| Panel **Tilemap** del Inspector | `Tilemap` | ruta del tileset JSON (no lo asigna si no valida) |
 | Panel **Prefab** del Inspector | `Prefab` | instancia el prefab completo (jerarquía + componentes) |
 
 Todos los receptores almacenan el valor en `std::string` o en buffers de al
@@ -560,8 +562,8 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 
 ## 7. Física
 
-- Colliders de esfera, cubo o malla; con `RigidBody` participan de la
-  simulacion Bullet. Solo simula en **Depuración** o **Juego**: en edicion el
+- Colliders de esfera, cubo, malla o `TilemapCollider` (cajas por tramo de
+  tiles solidos); con `RigidBody` participan de la simulacion Bullet. Solo simula en **Depuración** o **Juego**: en edicion el
   gizmo mueve el objeto y el motor sincroniza collider/cuerpo/objeto con la
   matriz global compuesta del dueño, para que mover un collider no
   desincronice el cuerpo.

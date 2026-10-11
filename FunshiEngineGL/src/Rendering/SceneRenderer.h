@@ -28,6 +28,7 @@
 #include "GrillaRenderer.h"
 #include "GuiaEje.h"
 #include "SpriteRenderer.h"
+#include "TilemapRenderer.h"
 
 // Clases de otras capas que la pasada de render necesita (solo data CPU).
 class GameObject;
@@ -138,6 +139,12 @@ private:
     // para que un sprite no quede tapado por el estado del pipeline anterior.
     void dibujarSprites(const FrameContext& ctx, const float view[16],
                         const float projection[16]);
+    // Pasada de tilemaps 2D: recoge los objetos con componente Tilemap, ordena
+    // por la Z de su Transform (atras->adelante) y dibuja la malla horneada de
+    // cada uno (un draw call por atlas) con blend activo y sin escritura de
+    // profundidad. Va antes de los sprites para que estos queden por encima.
+    void dibujarTilemaps(const FrameContext& ctx, const float view[16],
+                         const float projection[16]);
     void dibujarMarcadorLuz(GameObject* object);
     void dibujarMarcadorCamara(GameObject* object);
     // Cielo degradado (fullscreen triangle): se dibuja ANTES que la grilla y
@@ -186,6 +193,9 @@ private:
     // Pasada de sprites 2D (componente SpriteRenderer): mismo pipeline moderno
     // sobre su propio shader y malla de quad.
     Rendering::SpriteRenderer spriteRenderer_;
+    // Pasada de tilemaps 2D (componente Tilemap): sube una malla horneada por
+    // tilemap y la reutiliza hasta que cambia su revision.
+    Rendering::TilemapRenderer tilemapRenderer_;
     // Programas del cielo: el del degradado (triangulo a pantalla completa) y el
     // del cubemap del componente Skybox. Se crean en la primera pasada que los
     // necesita y se reusan: ShaderProgram cachea las locations de los uniforms
