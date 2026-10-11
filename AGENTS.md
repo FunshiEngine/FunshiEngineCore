@@ -209,14 +209,30 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   mantener compatibilidad de prefijos y acotar lecturas con `std::min`.
 - **Física** detrás de la fachada `PhysicsEngine` → `IPhysicsBackend`; no usar
   Bullet fuera de `Fisicas/`.
-- **Compatibilidad multiplataforma**: al usar APIs nativas del sistema operativo
-  (Windows API, POSIX, filesystem, threading, dynamic loading, etc.), SIEMPRE
-  verificar y mantener compatibilidad con **Linux y Windows**. Usar guardas
-  `#ifdef _WIN32` / `#else` (Linux/macOS) y aislar el código dependiente de
-  plataforma en capas de abstracción o backends dedicados (p. ej.
-  `IRenderBackend`, `FileSystemWatcher`, `BackendCpp`/`BackendJava`). No asumir
+- **Compatibilidad multiplataforma**: el motor es compatible con **Linux y Windows**,
+  sin excepción. Al usar APIs nativas del sistema operativo (Windows API, POSIX,
+  filesystem, threading, dynamic loading, etc.), SIEMPRE verificar y mantener las
+  dos plataformas. Usar guardas `#ifdef _WIN32` / `#else` (Linux/macOS) y aislar el
+  código dependiente de plataforma en capas de abstracción o backends dedicados
+  (p. ej. `IRenderBackend`, `FileSystemWatcher`, `BackendCpp`/`BackendJava`). No asumir
   que headers o comportamientos de un SO existen en el otro; probar o validar
   compilación cruzada en CI antes de confirmar cambios.
+  - **Énfasis en filesystem y servicios del SO**: es donde más divergen. Al trabajar
+    con rutas, archivos o servicios propios del sistema (separadores `/` frente a `\`,
+    mayúsculas y minúsculas, CRLF frente a LF, `mtime` y latencias del FS, permisos
+    y ACL, symlinks, variables de entorno, procesos hijo, carga dinámica, watchers
+    de archivos, toolchains), diseñar para las dos plataformas desde el primer
+    boceto: `std::filesystem` con el separador nativo, ramas `#ifdef _WIN32` con
+    fallback POSIX documentado, y decisiones probadas por escritura real (no por
+    existencia del directorio). Los patrones conocidos viven en `DocuTecnicoBugs.md`.
+  - **Tests de compatibilidad multisistema**: cada funcionalidad que toque filesystem
+    o servicios del SO lleva su prueba headless que la ejercite en Windows y en Linux
+    (ramas `#ifdef _WIN32` / `#else` en el propio test cuando el contrato difiera por
+    plataforma, o comparación contra `(fs::path(base) / ...).string()` en vez de
+    literales con `/`). Si el test resulta demasiado artificial (simular el SO sin
+    ejercer el contrato real), se deja constancia de por qué no se implementa y se
+    cubre con sonda local o CI en la plataforma real; la decisión queda a evaluar
+    según la funcionalidad.
 
 ## Memoria de trabajo: documentos locales ignorados por git
 

@@ -39,8 +39,8 @@
 //     el grid): la ruta nueva es hermana de la vieja, el disco lo hace
 //     FileManager y solo un cambio real publica ArchivosReubicados.
 //   - Busqueda por ruta en el arbol vigente.
-//   - FileSystemWatcher (solo en Linux, donde usa inotify): deteccion de
-//     cambios externos y de ramas multi-nivel.
+//   - FileSystemWatcher: deteccion de cambios externos (inotify en Linux,
+//     polling temporal en el resto, con el intervalo inyectado).
 
 #include <chrono>
 #include <cstdio>
@@ -54,14 +54,11 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/FileManager/FileManager.h"
+#include "../FunshiEngineGL/src/FileManager/FileSystemWatcher.h"
 #include "../FunshiEngineGL/src/GUI/FileManagerGUI/CrearCarpeta.h"
 #include "../FunshiEngineGL/src/GUI/FileManagerGUI/RenombrarElemento.h"
 #include "../FunshiEngineGL/src/GUI/FileManagerGUI/SoltarEnCarpeta.h"
 #include "../FunshiEngineGL/src/GUI/ObjetosGUI/Skybox/SelectorArchivoCubemap.h"
-
-#if defined(__linux__)
-#include "../FunshiEngineGL/src/FileManager/FileSystemWatcher.h"
-#endif
 
 namespace fs = std::filesystem;
 
@@ -385,7 +382,10 @@ int main() {
     CHECK(fm.buscarCarpetaPorRuta(unir(proy, "Assets/DiscDirecto")) != nullptr,
           "el rescaneo incorpora carpetas creadas fuera del editor");
 
-    // --- FileSystemWatcher (inotify, solo Linux) ----------------------------
+    // --- FileSystemWatcher ----------------------------------------------------
+    // En Linux: inotify. En el resto (Windows): polling temporal sobre el mtime
+    // de la raiz, con el intervalo inyectado para ejercer el contrato sin
+    // esperar el pulso de produccion.
 #if defined(__linux__)
     const fs::path proyw = base / "proyecto_watch";
     fs::create_directories(proyw / "ok");
@@ -404,6 +404,41 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         CHECK(w.huboCambiosYConsumir(),
               "detecta cambios profundos dentro de la rama nueva");
+    }
+#else
+    const fs::path proyw = base / "proyecto_watch";
+    fs::create_directories(proyw / "ok");
+    {
+        // Intervalo corto: el contrato del polling es "un pulso periodico
+        // compara el mtime de la raiz", no la duracion del pulso.
+        FileSystemWatcher w(proyw.string(), std::chrono::milliseconds(50));
+        CHECK(!w.huboCambiosYConsumir(),
+              "sin eventos al arrancar (polling)");
+        // Un pulso completo sin tocar nada no debe inventar un cambio: la
+        // marca inicial del mtime es la de la raiz, no el epoch.
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        CHECK(!w.huboCambiosYConsumir(),
+              "sin cambios en la raiz el pulso no inventa eventos (polling)");
+        fs::create_directory(proyw / "nueva");
+        // La DETECCION solo es verificable donde la lectura del mtime tiene
+        // la precision del FS: con MSVC (CI Windows) se lee FILETIME (100ns)
+        // y el cambio es observable. El CRT de MinGW trae la lectura de stat
+        // (1 segundo, y su setter no aplica sobre directorios), de modo que
+        // una creacion dentro del mismo segundo que la semilla no cambia el
+        // valor leido; ahi el contrato del polling queda cubierto por la
+        // verificacion de que NO inventa eventos, y la deteccion por la
+        // corrida de CI en la plataforma real.
+#if defined(_MSC_VER)
+        bool detecto = false;
+        for (int i = 0; i < 26 && !detecto; ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            detecto = w.huboCambiosYConsumir();
+        }
+        CHECK(detecto,
+              "el pulso detecta la creacion de una carpeta (polling)");
+        CHECK(!w.huboCambiosYConsumir(),
+              "la marca se consume (polling)");
+#endif
     }
 #endif
 

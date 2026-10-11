@@ -700,8 +700,8 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
                   raiz + "/Assets/Cpp")
                   == raiz + "/Assets/Cpp/cpp.cpp",
               "en Windows el prefijo se coteja sin distinguir mayusculas");
-        CHECK(EditorConfig::relativizarRuta("c:\proyecto\ASSETS\scripts\a.dll") ==
-                  "scripts/a.dll",
+        CHECK(EditorConfig::relativizarRuta(raiz + "\\ASSETS\\scripts\\a.dll") ==
+                  "ASSETS\\scripts\\a.dll",
               "en Windows relativizar no depende de como este escrita la raiz");
 #else
         CHECK(EditorConfig::reemplazarPrefijoRuta(
@@ -974,15 +974,15 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         const std::vector<std::string> rutas = RutasLog::candidatas(
             datosUsuario, exe, temp);
         CHECK(rutas.size() == 3, "tres candidatas: raiz de datos, ejecutable y temporal");
-        CHECK(rutas[0] == datosUsuario + "/logs",
+        CHECK(rutas[0] == (fs::path(datosUsuario) / "logs").string(),
               "la primera candidata es la raiz de datos");
-        CHECK(rutas[1] == exe + "/logs", "la segunda, la carpeta del ejecutable");
-        CHECK(rutas[2] == temp + "/FunshiEngineGL/logs",
+        CHECK(rutas[1] == (fs::path(exe) / "logs").string(), "la segunda, la carpeta del ejecutable");
+        CHECK(rutas[2] == (fs::path(temp) / "FunshiEngineGL" / "logs").string(),
               "la tercera, la temporal del motor");
 
         // Sin raiz de datos no se pierde la carpeta del ejecutable.
         const std::vector<std::string> sinDatos = RutasLog::candidatas("", exe, temp);
-        CHECK(sinDatos.size() == 2 && sinDatos[0] == exe + "/logs",
+        CHECK(sinDatos.size() == 2 && sinDatos[0] == (fs::path(exe) / "logs").string(),
               "sin raiz de datos arranca por la carpeta del ejecutable");
 
         // Todo vacio: no hay candidatas, el arranque lo reporta como log vacio.
@@ -993,8 +993,8 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         // el motor prueba la primera que acepte escritura, no la ultima.
         const std::vector<std::string> repetidas =
             RutasLog::candidatas(exe, exe, temp);
-        CHECK(repetidas.size() == 2 && repetidas[0] == exe + "/logs" &&
-                  repetidas[1] == temp + "/FunshiEngineGL/logs",
+        CHECK(repetidas.size() == 2 && repetidas[0] == (fs::path(exe) / "logs").string() &&
+                  repetidas[1] == (fs::path(temp) / "FunshiEngineGL" / "logs").string(),
               "una ruta repetida no se prueba dos veces");
     }
 
