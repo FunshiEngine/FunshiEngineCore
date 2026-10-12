@@ -208,8 +208,8 @@ void TerminalInterface::contentGUI() {
 
         static char inputBuffer[4096] = {};
 
-        // InputText invisible: ancho 0, sin frame, sin fondo
-        ImGui::SetNextItemWidth(0.0f);
+        // InputText invisible: ancho 1px (no 0, para que sea focusable), sin frame, sin fondo
+        ImGui::SetNextItemWidth(1.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
         ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
@@ -221,7 +221,8 @@ void TerminalInterface::contentGUI() {
         ImGui::PopStyleVar(2);
 
         // Manejo de teclas especiales NO cubiertas por callbacks
-        // (Ctrl+A-Z, Home, End, Delete, Escape, etc.)
+        // (Ctrl+A-Z, Home, End, Delete, Escape, Backspace, etc.)
+        // Enter se maneja aparte porque EnterReturnsTrue desactiva el item
         if (ImGui::IsItemActive()) {
             ImGuiIO& io = ImGui::GetIO();
 
@@ -240,13 +241,17 @@ void TerminalInterface::contentGUI() {
             if (ImGui::IsKeyPressed(ImGuiKey_Escape, true)) {
                 sesion_.escribir("\x1b");
             }
-            // Ctrl+A-Z (excepto los que ImGui usa nativamente: C/V/X/Z/Y/A)
+            // Ctrl+A-Z (INCLUYE Ctrl+C=3, que ImGui usa para Copy pero nosotros
+            // queremos que vaya al terminal como SIGINT)
             if (io.KeyCtrl && !io.KeyAlt) {
                 for (int key = ImGuiKey_A; key <= ImGuiKey_Z; ++key) {
                     if (ImGui::IsKeyPressed(static_cast<ImGuiKey>(key), true)) {
                         char ctrlChar = static_cast<char>(key - ImGuiKey_A + 1);
-                        if (ctrlChar != 3 && ctrlChar != 22 && ctrlChar != 24 &&
-                            ctrlChar != 26 && ctrlChar != 25 && ctrlChar != 1) {
+                        // Solo saltamos los que ImGui maneja nativamente en InputText
+                        // y que NO queremos en el terminal: V(peg), X(cort), Z(desh), Y(reh), A(sel.todo)
+                        // Ctrl+C (3) SÍ lo enviamos al terminal (SIGINT)
+                        if (ctrlChar != 22 && ctrlChar != 24 && ctrlChar != 26 &&
+                            ctrlChar != 25 && ctrlChar != 1) {
                             sesion_.escribir(std::string(1, ctrlChar));
                         }
                     }
@@ -254,8 +259,10 @@ void TerminalInterface::contentGUI() {
             }
         }
 
-        // Recuperar foco tras Enter y limpiar buffer
+        // Enter: EnterReturnsTrue retorna true y desactiva el item en este frame.
+        // enterPressed será true solo en el frame exacto de la pulsación.
         if (enterPressed) {
+            sesion_.escribir("\r");
             ImGui::SetKeyboardFocusHere(-1);
             inputBuffer[0] = '\0';
         }
