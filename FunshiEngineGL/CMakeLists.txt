@@ -563,6 +563,33 @@ set_target_properties(terminal-emulator-tests PROPERTIES
 )
 add_test(NAME terminal-emulator-tests COMMAND terminal-emulator-tests)
 
+# TerminalSession prueba la E/S REAL del pseudo-terminal: forkpty en POSIX y
+# ConPTY en Windows. El test acota sus esperas (drenado y detener con deadline)
+# y sale con 77 si ConPTY no esta disponible, por eso se registra con
+# SKIP_RETURN_CODE. En Linux forkpty() requiere enlazar -lutil.
+add_executable(terminal-session-tests
+    ${SRC_DIR}/Terminal/TerminalSession.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/TerminalSessionTests.cpp
+)
+target_include_directories(terminal-session-tests PRIVATE ${SRC_DIR})
+set_target_properties(terminal-session-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+find_package(Threads QUIET)
+if(Threads_FOUND)
+    target_link_libraries(terminal-session-tests PRIVATE Threads::Threads)
+endif()
+if(UNIX AND NOT APPLE)
+    target_link_libraries(terminal-session-tests PRIVATE util)
+endif()
+add_test(NAME terminal-session-tests COMMAND terminal-session-tests)
+set_tests_properties(terminal-session-tests PROPERTIES
+    SKIP_RETURN_CODE 77
+    TIMEOUT 60
+)
+
 add_executable(filemanager-tests
     ${SRC_DIR}/GestorDeArchivos/GestorDeArchivos.cpp
     ${SRC_DIR}/GestorDeArchivos/File.cpp

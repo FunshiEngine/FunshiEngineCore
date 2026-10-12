@@ -25,6 +25,8 @@
 #define NOMINMAX
 #include <windows.h>
 #else
+#include <fcntl.h>
+#include <poll.h>
 #include <pty.h>
 #include <signal.h>
 #include <sys/ioctl.h>
@@ -85,18 +87,66 @@ struct TerminalSession::Impl {
 #else
     int terminal = -1;
     pid_t proceso = -1;
+    // Señal de parada solicitada por detener(): el lector la usa para acotar su
+    // espera y drenar la salida final aunque la shell no muera de inmediato.
+    std::atomic<bool> parada{false};
 #endif
 
     void leer() {
         char bloque[4096];
-        while (activa.load(std::memory_order_acquire)) {
 #if defined(_WIN32)
+        // Se lee hasta que el extremo de salida de ConPTY se cierre (ReadFile
+        // falla o devuelve 0 tras ClosePseudoConsole), de modo que la salida
+        // final emitida por la shell no se descarte.
+        for (;;) {
             DWORD leidos = 0;
             if (!ReadFile(salidaPipe, bloque, sizeof(bloque), &leidos, nullptr) ||
-                leidos == 0) break;
+                leidos == 0)
+                break;
             agregarSalida(mutexSalida, salida, bloque, leidos);
+        }
 #else
+        // El maestro del PTY es no bloqueante; poll() acota la espera para que
+        // detener() nunca dependa de close() para despertar el read().
+        struct pollfd descriptor {};
+        descriptor.fd = terminal;
+        descriptor.events = POLLIN;
+        int inactivo = 0;
+        for (;;) {
+            const int listo = ::poll(&descriptor, 1, 100);
+            if (listo < 0) {
+                if (errno == EINTR) continue;
+                break;
+            }
+            if (listo == 0) {
+                if (parada.load(std::memory_order_acquire) && ++inactivo >= 5) {
+                    drenarResto(bloque, sizeof(bloque));
+                    break;
+                }
+                continue;
+            }
+            inactivo = 0;
+            if (!(descriptor.revents & (POLLIN | POLLHUP | POLLERR))) continue;
             const ssize_t leidos = ::read(terminal, bloque, sizeof(bloque));
+            if (leidos > 0) {
+                agregarSalida(mutexSalida, salida, bloque,
+                              static_cast<std::size_t>(leidos));
+            } else if (leidos < 0 && errno == EINTR) {
+                continue;
+            } else if (leidos < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                continue;
+            } else {
+                break;
+            }
+        }
+#endif
+        activa.store(false, std::memory_order_release);
+    }
+
+#if !defined(_WIN32)
+    void drenarResto(char* bloque, std::size_t tam) {
+        for (;;) {
+            const ssize_t leidos = ::read(terminal, bloque, tam);
             if (leidos > 0) {
                 agregarSalida(mutexSalida, salida, bloque,
                               static_cast<std::size_t>(leidos));
@@ -105,10 +155,9 @@ struct TerminalSession::Impl {
             } else {
                 break;
             }
-#endif
         }
-        activa.store(false, std::memory_order_release);
     }
+#endif
 };
 
 TerminalSession::TerminalSession() : impl_(std::make_unique<Impl>()) {}
@@ -281,6 +330,9 @@ fallo_windows:
         _exit(127);
     }
     impl_->proceso = hijo;
+    const int banderas = ::fcntl(impl_->terminal, F_GETFL, 0);
+    if (banderas >= 0) ::fcntl(impl_->terminal, F_SETFL, banderas | O_NONBLOCK);
+    impl_->parada.store(false, std::memory_order_release);
     impl_->activa.store(true, std::memory_order_release);
     impl_->hiloLectura = std::thread([this] { impl_->leer(); });
     return true;
@@ -348,6 +400,9 @@ bool TerminalSession::estaActiva() const {
 
 void TerminalSession::detener() {
 #if defined(_WIN32)
+    // Cerrar la pseudoconsola hace que el extremo de salida se cierre y el
+    // hilo lector drene la salida final; no se cierra salidaPipe hasta unir el
+    // hilo para no cortar la lectura en curso.
     if (impl_->pseudoconsola) {
         ClosePseudoConsole(impl_->pseudoconsola);
         impl_->pseudoconsola = nullptr;
@@ -356,12 +411,12 @@ void TerminalSession::detener() {
         CloseHandle(impl_->entrada);
         impl_->entrada = INVALID_HANDLE_VALUE;
     }
+    if (impl_->hiloLectura.joinable()) impl_->hiloLectura.join();
     if (impl_->salidaPipe != INVALID_HANDLE_VALUE) {
         CloseHandle(impl_->salidaPipe);
         impl_->salidaPipe = INVALID_HANDLE_VALUE;
     }
     impl_->activa.store(false, std::memory_order_release);
-    if (impl_->hiloLectura.joinable()) impl_->hiloLectura.join();
     if (impl_->proceso) {
         if (WaitForSingleObject(impl_->proceso, 2000) == WAIT_TIMEOUT &&
             impl_->trabajo) {
@@ -376,21 +431,27 @@ void TerminalSession::detener() {
         impl_->trabajo = nullptr;
     }
 #else
-    impl_->activa.store(false, std::memory_order_release);
+    // Pedir la parada y colgar el grupo de la shell; el lector drena hasta el
+    // cierre del esclavo (o vence su ventana de gracia) antes de cerrar el
+    // maestro, de modo que la salida final no se pierda y join() no dependa de
+    // que close() despierte un read() bloqueado.
+    impl_->parada.store(true, std::memory_order_release);
     if (impl_->proceso > 0) kill(-impl_->proceso, SIGHUP);
+    if (impl_->hiloLectura.joinable()) impl_->hiloLectura.join();
     if (impl_->terminal >= 0) {
         ::close(impl_->terminal);
         impl_->terminal = -1;
     }
-    if (impl_->hiloLectura.joinable()) impl_->hiloLectura.join();
     if (impl_->proceso > 0) {
         int estado = 0;
         pid_t resultado = waitpid(impl_->proceso, &estado, WNOHANG);
         if (resultado == 0) {
             kill(-impl_->proceso, SIGKILL);
-            waitpid(impl_->proceso, &estado, 0);
+            while (waitpid(impl_->proceso, &estado, 0) < 0 && errno == EINTR) {
+            }
         }
         impl_->proceso = -1;
     }
+    impl_->activa.store(false, std::memory_order_release);
 #endif
 }

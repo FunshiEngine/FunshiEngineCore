@@ -1467,7 +1467,9 @@ Selecciona una shell en el menu del panel y presiona **Iniciar**. Haz clic en
 el area de entrada y escribe directamente en la shell. Enter ejecuta o confirma;
 las flechas, Tab, Backspace, Delete, Home, End y Escape se envian como teclas
 de terminal. Ctrl+C se puede enviar con el boton **Interrumpir**. **Cerrar
-sesion** termina la shell y los procesos asociados.
+sesion** termina la shell y los procesos asociados; la salida que la shell
+alcance a emitir al cerrarse igual se muestra en el panel, y la sesion arranca
+con la cuadricula del tamaño real del panel.
 
 En Windows se puede elegir `cmd.exe`, Windows PowerShell (`powershell.exe`) o
 PowerShell (`pwsh.exe`, si está instalado). En Linux se puede elegir Bash, `sh`

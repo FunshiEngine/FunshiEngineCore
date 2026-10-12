@@ -76,9 +76,12 @@ hasta la recarga.
 La terminal del editor se compone de `GUI/Terminal/TerminalInterface` y
 `Terminal/TerminalSession`. La primera es una ventana persistente registrada en
 `GUIManager`, el menú Ventanas y el dock; la sesión lanza una shell dentro del
-directorio fijo del proyecto y entrega su salida mediante un hilo lector. El
-backend Windows usa ConPTY y el POSIX usa `forkpty`; la sesión no reutiliza
-`Proceso`, que es síncrono y no expone una terminal interactiva.
+directorio fijo del proyecto y entrega su salida mediante un hilo lector que
+drena hasta el cierre del pseudo-terminal (incluida la salida emitida al
+terminar la shell, que `TerminalInterface` procesa siempre, no solo mientras la
+sesión está activa). El backend Windows usa ConPTY y el POSIX usa `forkpty` con
+el maestro en modo no bloqueante; la sesión no reutiliza `Proceso`, que es
+síncrono y no expone una terminal interactiva.
 `TerminalEmulator` mantiene la cuadrícula VT, cursor, atributos ANSI comunes,
 pantalla alternativa y respuestas a consultas de cursor; `TerminalInterface`
 traduce celdas y teclas a ImGui. La entrada UTF-8 se envía al pseudo-terminal.
@@ -825,10 +828,13 @@ La convención general es un par `.h`/`.cpp` por clase. Las excepciones son:
 al build sin enumerarlos manualmente. Los archivos de ImGui se recopilan por separado
 desde `src/ImGui/` y los de ImGuizmo desde `ImGuizmo/` (fuera de `src/`).
 
-Además del ejecutable, el proyecto define **veinte targets de prueba headless**
-registrados en CTest (`scripts-java-tests` solo se registra con
-`-DFUNSHI_JAVA=ON`; cinco de ellos enlazan `funshi_engine` y requieren
-`BUILD_ENGINE=ON`, el resto compila también con `BUILD_ENGINE=OFF`):
+Además del ejecutable, el proyecto define **veintiséis targets de prueba
+headless** registrados en CTest (`scripts-java-tests` solo se registra con
+`-DFUNSHI_JAVA=ON`; ocho de ellos viven bajo `BUILD_ENGINE=ON`
+—`comandos-tests`, `escena-serializacion-tests`, `catalogo-componentes-tests`,
+`tilemap-tests`, `prefab-tests`, `manifiesto-assets-tests`,
+`orquestador-estado-tests` y `tema-tests`—, y el resto compila también con
+`BUILD_ENGINE=OFF`):
 
 - `filemanager-tests` (190 en Linux; 181 en Windows con MinGW, 183 con MSVC): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
   contra un proyecto temporal, sin ventanas ni pila gráfica; incluye el arrastre
@@ -948,10 +954,34 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   reparentado: preserva la pose mundial reescribiendo el local como
   `inverse(padre) × mundo` (los descendientes no saltan), refresca el cuerpo
   fisico del objeto y deja el local consistente en disco.
+- `diagnostic-registry-tests` (26): `RegistroDiagnosticos`: registro de eventos
+  de diagnóstico (nivel, módulo, timestamp UTC), historial JSONL con retención y
+  lectura acotada, deduplicación por clave y el volcado de `RuntimeException`.
+- `catalogo-componentes-tests` (52): la tabla única que declara, por componente,
+  su dimensión (2D/3D), requisitos, creador y panel: descriptores completos y sin
+  nombres repetidos, `ComponentFactory` creando desde el catálogo (tolerando el
+  prefijo de MSVC y el alias retrocompatible), tipos desconocidos y requisitos
+  incumplidos devolviendo nullptr, y el filtro por dimensión y los submenús.
+- `tilemap-tests` (57): tileset JSON estilo Tiled (parseo, geometría de la
+  grilla, flag de solidez por tile), capas y pintado por celda, horneado de la
+  malla (una malla por tilemap, un quad por tile), round-trip binario y la shape
+  compuesta del `TilemapCollider`.
+- `prefab-tests` (82): sistema de Prefabs: round-trip guardar → instanciar
+  conservando nombre, tag, jerarquía, componentes y `Transform`, más la caché de
+  `PrefabLibrary` y la validación de archivos corruptos.
+- `terminal-emulator-tests` (19): cuadrícula VT del `TerminalEmulator`: CR/LF,
+  posicionamiento y consulta del cursor (`H`/`DSR`), secuencias SGR (color,
+  negrita, fondo) y borrado.
+- `terminal-session-tests` (14): E/S real del pseudo-terminal (`forkpty` en
+  POSIX, ConPTY en Windows): rechazos deterministas, arranque, eco del comando y
+  su salida por el PTY, y que `detener()` no se cuelga ni pierde la salida
+  emitida durante el cierre (SKIP 77 si ConPTY no está disponible).
 
-Las cinco suites que enlazan el engine (`tema-tests`, `comandos-tests`,
-`manifiesto-assets-tests`, `orquestador-estado-tests` y
-`escena-serializacion-tests`) solo se compilan con `BUILD_ENGINE=ON`.
+Las ocho suites del bloque editor (`comandos-tests`, `escena-serializacion-tests`,
+`catalogo-componentes-tests`, `tilemap-tests`, `prefab-tests`,
+`manifiesto-assets-tests`, `orquestador-estado-tests` y `tema-tests`) solo se
+compilan con `BUILD_ENGINE=ON`, porque enlazan `funshi_engine` o sus fuentes
+directamente.
 
 La opción `BUILD_ENGINE=OFF` compila solo las pruebas (útil en CI y plataformas
 sin las librerías gráficas), y `ENABLE_ASAN` (ON por defecto en Debug) activa

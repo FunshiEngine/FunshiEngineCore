@@ -42,8 +42,9 @@ private:
     std::string directorioProyecto_;
     std::string error_;
     TerminalEmulator emulador_;
-    unsigned columnas_ = 0;
-    unsigned filas_ = 0;
+    unsigned columnas_ = 80;
+    unsigned filas_ = 24;
+    bool iniciarPendiente_ = false;
 
     void iniciar();
     static int filtrarCaracter(ImGuiInputTextCallbackData* datos);
