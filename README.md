@@ -1,6 +1,6 @@
 # FunshiEngineGL
 
-Motor y editor 3D en tiempo real escrito en C++17, con interfaz Dear ImGui, renderizado OpenGL 3.3 Core y arquitectura modular (backends intercambiables).
+Motor y editor de juegos en tiempo real escrito en C++17, con interfaz Dear ImGui, renderizado OpenGL 3.3 Core y arquitectura modular (backends intercambiables).
 
 **Licencia:** [Apache License 2.0](LICENSE).
 
