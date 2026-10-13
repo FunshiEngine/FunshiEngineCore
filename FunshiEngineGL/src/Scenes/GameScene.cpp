@@ -60,6 +60,7 @@
 #include "../Objetos/Componentes/InterfaceComponent.h"
 #include "../Configuracion/EditorConfig.h"
 #include "GizmoController.h"
+#include "InterfacesJuego.h"
 #include <cmath>
 #include <imgui.h>
 #include <iostream>
@@ -716,13 +717,12 @@ void GameScene::GUI() {
     if (TerminalInterface* terminal = managerGUI->getTerminalGUI())
         terminal->printGUI();
     // Sistema de audio + creador de interfaces: el catalogo de clips se
-    // refresca por frame (tolerante y barato), el canvas refleja la interfaz
-    // activa y cambia su presentacion segun el modo play.
+    // refresca por frame (tolerante y barato). El canvas de juego (HUD) se
+    // dibuja aparte en pintarInterfacesJuego(), porque tambien corre en el
+    // juego exportado, donde no existe la GUI del editor.
     CreadorDeInterfaces* creador = nullptr;
-    CanvasInterface* canvas = nullptr;
     if (managerGUI) {
         creador = managerGUI->getCreadorInterfacesGUI();
-        canvas = managerGUI->getCanvasGUI();
         ImGui::BeginDisabled(modoJuego);
         if (creador) {
             creador->setClipNames(audioEngine->nombresClips());
@@ -732,40 +732,43 @@ void GameScene::GUI() {
     }
     ImGui::EndDisabled();
     ImGui::PopStyleVar();
+}
 
-    if (canvas) {
-        canvas->setAudioEngine(audioEngine.get());
-        canvas->setModoPlay(start);
-        UserInterfaceCustom* uiParaCanvas = nullptr;
-        if (start && creador) {
-            // En simulacion: buscar objeto con InterfaceComponent y activar
-            // su interfaz a pantalla completa (HUD del juego).
-            auto* objs = getGameObjectsScene();
-            if (objs && !objs->isEmpty()) {
-                Position<GameObject*>* pos = objs->first();
-                while (pos && pos->getElement()) {
-                    if (auto* ic =
-                            pos->getElement()->getComponent<InterfaceComponent>()) {
-                        const std::string& nombre = ic->getInterfaz();
-                        if (!nombre.empty())
-                            uiParaCanvas = creador->activarInterfaz(nombre);
-                        break;
-                    }
-                    pos = (pos != objs->last()) ? objs->next(pos) : nullptr;
-                }
-            }
-        } else if (creador) {
-            // En editor: usar la interfaz activa del creador (prueba manual).
-            uiParaCanvas = creador->getInterfazActiva();
+void GameScene::pintarInterfacesJuego() {
+    // Overlay de las interfaces de juego (HUD). La recoleccion corre siempre,
+    // tambien en el juego exportado (sin GUI del editor): recorre TODOS los
+    // InterfaceComponent de la escena, no solo el primero, para que una escena
+    // con varias interfaces no oculte las demas.
+    std::vector<InterfaceComponent*> interfaces =
+        InterfacesJuego::recolectarDeEscena(getGameObjectsScene());
+
+    // El canvas heredado muestra una sola interfaz a la vez y vive en la GUI
+    // del editor; sin managerGUI no hay canvas que pintar. El backend de
+    // interfaz web consumira `interfaces` para dibujar todas.
+    if (!managerGUI) return;
+    CanvasInterface* canvas = managerGUI->getCanvasGUI();
+    if (!canvas) return;
+    CreadorDeInterfaces* creador = managerGUI->getCreadorInterfacesGUI();
+
+    canvas->setAudioEngine(audioEngine.get());
+    canvas->setModoPlay(start);
+    UserInterfaceCustom* uiParaCanvas = nullptr;
+    if (start && creador) {
+        // En simulacion: activar la interfaz del primer objeto referenciado
+        // (HUD del juego).
+        if (!interfaces.empty()) {
+            uiParaCanvas = creador->activarInterfaz(interfaces.front()->getInterfaz());
         }
-        canvas->setUI(uiParaCanvas);
-        ImGui::PushStyleVar(
-            ImGuiStyleVar_Alpha, (start || menuActivo) ? 1.0f : 0.0f);
-        ImGui::BeginDisabled(!start && !menuActivo);
-        canvas->printGUI();
-        ImGui::EndDisabled();
-        ImGui::PopStyleVar();
+    } else if (creador) {
+        // En editor: usar la interfaz activa del creador (prueba manual).
+        uiParaCanvas = creador->getInterfazActiva();
     }
+    canvas->setUI(uiParaCanvas);
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, (start || menuActivo) ? 1.0f : 0.0f);
+    ImGui::BeginDisabled(!start && !menuActivo);
+    canvas->printGUI();
+    ImGui::EndDisabled();
+    ImGui::PopStyleVar();
 }
 
 void GameScene::pintarViewportsGUI() {
@@ -1323,6 +1326,7 @@ void GameScene::gameScene() {
     }
 
     GUI();
+    pintarInterfacesJuego();
 
     if (!CameraFrameSafety::validarCamara(sceneRegistry.get(),
                                           activeCameraObject, camara)) {

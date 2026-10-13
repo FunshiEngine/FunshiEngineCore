@@ -399,6 +399,10 @@ FunshiEngineGL/                          ← raíz del repo
         └── Scenes/
             ├── GameScene.h/.cpp          ← coordinador del frame: render, GUI, física, gizmo,
             │                                previews y pasada de la grilla
+            ├── InterfacesJuego.h/.cpp    ← recolección de las interfaces de juego (HUD) de la
+            │                                escena: recorre TODOS los objetos y devuelve los
+            │                                InterfaceComponent referenciados, en orden (lógica
+            │                                pura, sin GL ni GUI, probada headless)
             ├── GizmoController.h/.cpp   ← gizmo ImGuizmo + picking (desde GameScene): estado
             │                                (operación/global/listo), arrastre con
             │                                TransformComando (historial) y congelación de
@@ -828,13 +832,13 @@ La convención general es un par `.h`/`.cpp` por clase. Las excepciones son:
 al build sin enumerarlos manualmente. Los archivos de ImGui se recopilan por separado
 desde `src/ImGui/` y los de ImGuizmo desde `ImGuizmo/` (fuera de `src/`).
 
-Además del ejecutable, el proyecto define **veintiséis targets de prueba
+Además del ejecutable, el proyecto define **veintisiete targets de prueba
 headless** registrados en CTest (`scripts-java-tests` solo se registra con
-`-DFUNSHI_JAVA=ON`; ocho de ellos viven bajo `BUILD_ENGINE=ON`
+`-DFUNSHI_JAVA=ON`; nueve de ellos viven bajo `BUILD_ENGINE=ON`
 —`comandos-tests`, `escena-serializacion-tests`, `catalogo-componentes-tests`,
-`tilemap-tests`, `prefab-tests`, `manifiesto-assets-tests`,
-`orquestador-estado-tests` y `tema-tests`—, y el resto compila también con
-`BUILD_ENGINE=OFF`):
+`tilemap-tests`, `interfaces-juego-tests`, `prefab-tests`,
+`manifiesto-assets-tests`, `orquestador-estado-tests` y `tema-tests`—, y el
+resto compila también con `BUILD_ENGINE=OFF`):
 
 - `filemanager-tests` (190 en Linux; 181 en Windows con MinGW, 183 con MSVC): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
   contra un proyecto temporal, sin ventanas ni pila gráfica; incluye el arrastre
@@ -966,6 +970,11 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   grilla, flag de solidez por tile), capas y pintado por celda, horneado de la
   malla (una malla por tilemap, un quad por tile), round-trip binario y la shape
   compuesta del `TilemapCollider`.
+- `interfaces-juego-tests` (9): la recolección de interfaces de juego (HUD):
+  `InterfacesJuego::recolectarDeEscena` sobre la lista de objetos de la escena
+  (lista nula o vacía sin resultados, objetos sin `InterfaceComponent` que no
+  aportan, una escena con varias interfaces que las devuelve TODAS en orden y
+  las interfaces sin nombre omitidas sin cortar el recorrido).
 - `prefab-tests` (82): sistema de Prefabs: round-trip guardar → instanciar
   conservando nombre, tag, jerarquía, componentes y `Transform`, más la caché de
   `PrefabLibrary` y la validación de archivos corruptos.
@@ -977,11 +986,11 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   su salida por el PTY, y que `detener()` no se cuelga ni pierde la salida
   emitida durante el cierre (SKIP 77 si ConPTY no está disponible).
 
-Las ocho suites del bloque editor (`comandos-tests`, `escena-serializacion-tests`,
-`catalogo-componentes-tests`, `tilemap-tests`, `prefab-tests`,
-`manifiesto-assets-tests`, `orquestador-estado-tests` y `tema-tests`) solo se
-compilan con `BUILD_ENGINE=ON`, porque enlazan `funshi_engine` o sus fuentes
-directamente.
+Las nueve suites del bloque editor (`comandos-tests`, `escena-serializacion-tests`,
+`catalogo-componentes-tests`, `tilemap-tests`, `interfaces-juego-tests`,
+`prefab-tests`, `manifiesto-assets-tests`, `orquestador-estado-tests` y
+`tema-tests`) solo se compilan con `BUILD_ENGINE=ON`, porque enlazan
+`funshi_engine` o sus fuentes directamente.
 
 La opción `BUILD_ENGINE=OFF` compila solo las pruebas (útil en CI y plataformas
 sin las librerías gráficas), y `ENABLE_ASAN` (ON por defecto en Debug) activa
@@ -1028,6 +1037,7 @@ main.cpp
         ├─ marcadores de luz y cámara (wireframes auxiliares, batch de líneas)
         ├─ ImGuizmo::Manipulate sobre el GizmoTarget activo (objeto o collider)
         ├─ dibujarViewportsPrevios (FBO de cámaras) + paneles ImGui
+        ├─ pintarInterfacesJuego (overlay HUD; también corre sin GUI de editor)
         └─ pickObject con el mouse para seleccionar en el viewport
 ```
 

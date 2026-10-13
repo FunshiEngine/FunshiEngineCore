@@ -155,6 +155,11 @@ private:
     // "Vista previa" activo) como ventanas ImGui.
     void pintarViewportsGUI();
 
+    // Dibuja el overlay de las interfaces de juego (HUD) de la escena. Se llama
+    // desde gameScene() para que exista tambien en el juego exportado, donde no
+    // hay GUI del editor.
+    void pintarInterfacesJuego();
+
     // Cola de compilacion de scripts (play mode). Cada script se agenda y se
     // procesa en DOS fases para que la barra de estado muestre "Compilando X
     // (i de n)..." un frame antes de bloquear el hilo con g++/javac.

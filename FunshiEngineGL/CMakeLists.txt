@@ -406,6 +406,32 @@ if(WIN32)
     target_compile_definitions(catalogo-componentes-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
+# --- Pruebas headless de las interfaces de juego (HUD) ---
+# InterfacesJuego::recolectarDeEscena es logica pura sobre la lista de objetos
+# de la escena: verifica que se recolecten TODAS las interfaces referenciadas
+# (no solo la primera) y en orden. Necesita funshi_engine (GameObject), como
+# catalogo-componentes-tests.
+add_executable(interfaces-juego-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/InterfacesJuegoTests.cpp
+)
+target_include_directories(interfaces-juego-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+    ${CMAKE_SOURCE_DIR}/External/imgui
+)
+target_link_libraries(interfaces-juego-tests PRIVATE funshi_engine)
+set_target_properties(interfaces-juego-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME interfaces-juego-tests COMMAND interfaces-juego-tests)
+
+if(WIN32)
+    target_link_libraries(interfaces-juego-tests PRIVATE dbghelp)
+    target_compile_definitions(interfaces-juego-tests PRIVATE _HAS_STD_BYTE=0)
+endif()
+
 # --- Pruebas headless del tileset (JSON estilo Tiled) y del componente Tilemap
 # Cubre el parseo del tileset, la geometria de la grilla, el flag de solidez por
 # tile, el pintado por capas, el horneado de la malla, el round-trip binario y
