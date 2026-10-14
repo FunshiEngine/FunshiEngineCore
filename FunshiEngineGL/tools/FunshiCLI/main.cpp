@@ -237,10 +237,40 @@ bool resolverProyectoPorNombre(const std::string& nombre,
     return true;
 }
 
+// Interpreta args.dimension: entero 2/3 o los textos "2d"/"3d"/"DosD"/"TresD"
+// (sin distinguir mayusculas). Ausente -> 3D (retrocompatible con proyectos
+// previos al campo). Devuelve false si el valor esta presente pero no se
+// reconoce, para que el llamador responda invalid_request en lugar de asumir 3D.
+bool dimensionDesdeArgs(const nlohmann::json& argumentos, DimensionProyecto& dimension) {
+    if (!argumentos.contains("dimension")) {
+        dimension = DimensionProyecto::TresD;
+        return true;
+    }
+    const nlohmann::json& valor = argumentos["dimension"];
+    if (valor.is_number_integer()) {
+        dimension = dimensionProyectoDesdeEntero(valor.get<int>());
+        return true;
+    }
+    if (valor.is_string()) {
+        std::string texto = valor.get<std::string>();
+        std::transform(texto.begin(), texto.end(), texto.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (texto == "2d" || texto == "dosd") {
+            dimension = DimensionProyecto::DosD;
+            return true;
+        }
+        if (texto == "3d" || texto == "tresd") {
+            dimension = DimensionProyecto::TresD;
+            return true;
+        }
+    }
+    return false;
+}
+
+
 json componenteJson(Component* comp) {
     json result;
     result["type"] = typeid(*comp).name();
-    
     std::string typeName = typeid(*comp).name();
     if (typeName.rfind("class ", 0) == 0) typeName = typeName.substr(6);
     else if (typeName.rfind("struct ", 0) == 0) typeName = typeName.substr(7);
@@ -498,6 +528,15 @@ int main(int argc, char* argv[]) {
                 return 2;
             }
             const std::string nombre = argumentos.value("name", std::string{});
+            DimensionProyecto dimension = DimensionProyecto::TresD;
+            if (!dimensionDesdeArgs(argumentos, dimension)) {
+                registrarErrorUso("invalid_request",
+                                  "args.dimension invalido: use 2/3 o \"2d\"/\"3d\"/\"DosD\"/\"TresD\"");
+                imprimirJson(respuestaError(
+                    "invalid_request",
+                    "args.dimension invalido: use 2/3 o \"2d\"/\"3d\"/\"DosD\"/\"TresD\"", reqId));
+                return 2;
+            }
             std::error_code error;
             if (!ProjectManager::crearProyectoNuevo(nombre, error)) {
                 const std::string codigo = error == std::errc::file_exists
@@ -521,9 +560,19 @@ int main(int argc, char* argv[]) {
             evento.proyecto = nombre;
             evento.mensaje = "Proyecto creado";
             RegistroDiagnosticos::global().registrar(std::move(evento));
+
+            // Persistir la dimension elegida. crearProyectoNuevo solo crea la
+            // estructura; la dimension se fija por el unico camino de escritura
+            // (guardarProyecto), igual que la GUI, para que project.config.get y
+            // project.list la lean y no caigan al default 3D.
+            ConfigPersistence::Proyecto config = ConfigPersistence::cargarProyecto(nombre);
+            config.dimension = dimension;
+            ConfigPersistence::guardarProyecto(config, nombre);
+
             imprimirJson(respuestaCorrecta(
                 {{"name", nombre},
-                 {"path", ProjectPaths::directorioProyecto(nombre)}},
+                 {"path", ProjectPaths::directorioProyecto(nombre)},
+                 {"dimension", dimensionProyectoAEntero(dimension)}},
                 reqId));
             return 0;
         }
@@ -573,7 +622,8 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-        imprimirJson(respuestaCorrecta({{"project", nombreProyecto}, {"scenes", std::move(scenes)}, {"count", scenes.size()}}));
+        const long long cantidadScenes = static_cast<long long>(scenes.size());
+        imprimirJson(respuestaCorrecta({{"project", nombreProyecto}, {"scenes", std::move(scenes)}, {"count", cantidadScenes}}));
         return 0;
         }
         case ComandoCLI::SceneObjects: {
@@ -903,7 +953,8 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-        imprimirJson(respuestaCorrecta({{"scripts", std::move(scripts)}, {"count", scripts.size()}}));
+        const long long cantidadScripts = static_cast<long long>(scripts.size());
+        imprimirJson(respuestaCorrecta({{"scripts", std::move(scripts)}, {"count", cantidadScripts}}));
         return 0;
         }
         case ComandoCLI::ScriptCompile: {
