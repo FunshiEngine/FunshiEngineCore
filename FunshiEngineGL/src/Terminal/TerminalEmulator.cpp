@@ -28,7 +28,13 @@ TerminalEmulator::Celda celdaVacia() { return {}; }
 void TerminalEmulator::redimensionar(unsigned columnas, unsigned filas) {
     columnas = std::max(1u, std::min(columnas, 500u));
     filas = std::max(1u, std::min(filas, 300u));
-    if (columnas == columnas_ && filas == filas_) return;
+    // La salida temprana solo aplica si la rejilla ademas esta almacenada: el
+    // estado por defecto declara 80x24 con el vector vacio, y un
+    // redimensionar(80, 24) sobre ese estado debe asignar la matriz, no
+    // devolver sin crearla (los accesos a celdas asumen size == filas*columnas).
+    if (columnas == columnas_ && filas == filas_ &&
+        pantalla_.size() == static_cast<std::size_t>(columnas) * filas)
+        return;
     std::vector<Celda> nueva(static_cast<std::size_t>(columnas) * filas);
     const unsigned conservarColumnas = std::min(columnas, columnas_);
     const unsigned conservarFilas = std::min(filas, filas_);
@@ -53,6 +59,11 @@ void TerminalEmulator::redimensionar(unsigned columnas, unsigned filas) {
     margenInferior_ = filas_ - 1;
     cursorX_ = std::min(cursorX_, columnas_ - 1);
     cursorY_ = std::min(cursorY_, filas_ - 1);
+    // El cursor de la pantalla principal se restaura tal cual al salir de la
+    // alternativa (1049l); sin esta cota puede quedar fuera de la rejilla
+    // redimensionada y los CSI posteriores saldrían del vector.
+    cursorPrincipalX_ = std::min(cursorPrincipalX_, columnas_ - 1);
+    cursorPrincipalY_ = std::min(cursorPrincipalY_, filas_ - 1);
 }
 
 std::string TerminalEmulator::tomarRespuestas() {
@@ -111,7 +122,7 @@ void TerminalEmulator::poner(unsigned char byte) {
             secuenciaUtf8_.push_back(static_cast<char>(byte));
             if (--bytesUtf8Restantes_ == 0) {
                 ajustarCursorEscritura();
-                Celda& celda = pantalla_[static_cast<std::size_t>(cursorY_) * columnas_ + cursorX_];
+                Celda& celda = pantalla_[indice(cursorX_, cursorY_)];
                 celda.texto = secuenciaUtf8_;
                 celda.primerPlano = primerPlano_;
                 celda.fondo = fondo_;
@@ -140,7 +151,7 @@ void TerminalEmulator::poner(unsigned char byte) {
     }
     if (byte >= 0x80) return;
     ajustarCursorEscritura();
-    Celda& celda = pantalla_[static_cast<std::size_t>(cursorY_) * columnas_ + cursorX_];
+    Celda& celda = pantalla_[indice(cursorX_, cursorY_)];
     celda.texto.assign(1, static_cast<char>(byte));
     celda.primerPlano = primerPlano_;
     celda.fondo = fondo_;
@@ -155,6 +166,10 @@ void TerminalEmulator::ajustarCursorEscritura() {
     cursorX_ = 0;
     if (cursorY_ == margenInferior_) desplazarArriba(1);
     else cursorY_ = std::min(cursorY_ + 1, filas_ - 1);
+}
+
+unsigned TerminalEmulator::indice(unsigned x, unsigned y) const {
+    return std::min(y, filas_ - 1) * columnas_ + std::min(x, columnas_ - 1);
 }
 
 std::vector<unsigned> TerminalEmulator::parametros() const {
@@ -235,8 +250,14 @@ void TerminalEmulator::ejecutarCsi(char final) {
 
 void TerminalEmulator::limpiarLinea(unsigned modo) {
     const unsigned desde = modo == 1 || modo == 2 ? 0 : cursorX_;
-    const unsigned hasta = modo == 0 || modo == 2 ? columnas_ - 1 : cursorX_;
-    for (unsigned x = desde; x <= hasta; ++x) pantalla_[static_cast<std::size_t>(cursorY_) * columnas_ + x] = celdaVacia();
+    // En wrap pendiente cursorX_ vale columnas_: el extremo derecho se acota
+    // para no llegar al tamaño de la rejilla (la posicion de cursor como
+    // indice solo es valida con cursorX_ < columnas_).
+    const unsigned hasta = modo == 0 || modo == 2
+                               ? columnas_ - 1
+                               : std::min(cursorX_, columnas_ - 1);
+    for (unsigned x = desde; x <= hasta; ++x)
+        pantalla_[indice(x, cursorY_)] = celdaVacia();
 }
 
 void TerminalEmulator::limpiarPantalla(unsigned modo) {
@@ -244,11 +265,13 @@ void TerminalEmulator::limpiarPantalla(unsigned modo) {
     else if (modo == 0) {
         limpiarLinea(0);
         for (unsigned y = cursorY_ + 1; y < filas_; ++y)
-            for (unsigned x = 0; x < columnas_; ++x) pantalla_[static_cast<std::size_t>(y) * columnas_ + x] = celdaVacia();
+            for (unsigned x = 0; x < columnas_; ++x)
+                pantalla_[indice(x, y)] = celdaVacia();
     } else if (modo == 1) {
         limpiarLinea(1);
         for (unsigned y = 0; y < cursorY_; ++y)
-            for (unsigned x = 0; x < columnas_; ++x) pantalla_[static_cast<std::size_t>(y) * columnas_ + x] = celdaVacia();
+            for (unsigned x = 0; x < columnas_; ++x)
+                pantalla_[indice(x, y)] = celdaVacia();
     }
 }
 

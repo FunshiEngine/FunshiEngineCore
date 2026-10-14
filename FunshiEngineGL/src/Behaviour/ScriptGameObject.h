@@ -182,6 +182,8 @@ struct ScriptServices {
     void* (*instanciarPrefab)(const char* nombre, void* padre);
     // Lista los nombres de prefabs disponibles en la biblioteca.
     // Devuelve un array terminado en nullptr (el llamador no debe liberar).
+    // El array y los nombres que apunta son validos solo hasta la llamada
+    // siguiente: copiarlos en el acto si deben retenerse.
     const char** (*listarPrefabs)();
 
     // Version de la tabla (siempre al final).

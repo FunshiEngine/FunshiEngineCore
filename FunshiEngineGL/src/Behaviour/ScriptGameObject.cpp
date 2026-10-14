@@ -524,17 +524,18 @@ void* serviciosInstanciarPrefab(const char* nombre, void* padre) {
 
 const char** serviciosListarPrefabs() {
     if (!g_editor || !g_editor->getPrefabLibrary()) return nullptr;
-    static std::vector<const char*> cache;
-    cache.clear();
-    auto nombres = g_editor->getPrefabLibrary()->listarNombres();
-    cache.reserve(nombres.size() + 1);
-    for (const auto& n : nombres) {
-        // Nota: los strings son propios de la biblioteca, sus punteros son
-        // validos mientras la biblioteca no se recargue.
-        cache.push_back(n.c_str());
-    }
-    cache.push_back(nullptr);
-    return cache.data();
+    // Los nombres son copias estables hasta la llamada siguiente: listarNombres()
+    // devuelve un vector por valor, asi que sus c_str() se copian a un storage
+    // estatico y recien despues se construye la vista que se devuelve.
+    static std::vector<std::string> nombresEstables;
+    static std::vector<const char*> vista;
+    nombresEstables = g_editor->getPrefabLibrary()->listarNombres();
+    vista.clear();
+    vista.reserve(nombresEstables.size() + 1);
+    for (const auto& nombre : nombresEstables)
+        vista.push_back(nombre.c_str());
+    vista.push_back(nullptr);
+    return vista.data();
 }
 
 } // namespace

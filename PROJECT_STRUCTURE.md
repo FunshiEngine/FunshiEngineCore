@@ -966,12 +966,15 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   grilla, flag de solidez por tile), capas y pintado por celda, horneado de la
   malla (una malla por tilemap, un quad por tile), round-trip binario y la shape
   compuesta del `TilemapCollider`.
-- `prefab-tests` (82): sistema de Prefabs: round-trip guardar → instanciar
+- `prefab-tests` (90): sistema de Prefabs: round-trip guardar → instanciar
   conservando nombre, tag, jerarquía, componentes y `Transform`, más la caché de
-  `PrefabLibrary` y la validación de archivos corruptos.
-- `terminal-emulator-tests` (19): cuadrícula VT del `TerminalEmulator`: CR/LF,
+  `PrefabLibrary` y la validación de archivos corruptos; la API de scripts
+  `listarPrefabs` con storage estable (válido hasta la llamada siguiente).
+- `terminal-emulator-tests` (24): cuadrícula VT del `TerminalEmulator`: CR/LF,
   posicionamiento y consulta del cursor (`H`/`DSR`), secuencias SGR (color,
-  negrita, fondo) y borrado.
+  negrita, fondo) y borrado; CSI 1K con cursor en wrap pendiente, rejilla
+  recién redimensionada a las dimensiones por defecto, y pantalla alternativa
+  con resize (cursor restaurado acotado).
 - `terminal-session-tests` (14): E/S real del pseudo-terminal (`forkpty` en
   POSIX, ConPTY en Windows): rechazos deterministas, arranque, eco del comando y
   su salida por el PTY, y que `detener()` no se cuelga ni pierde la salida

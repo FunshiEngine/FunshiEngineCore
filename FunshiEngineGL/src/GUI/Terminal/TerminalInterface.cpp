@@ -25,6 +25,22 @@
 #include <cmath>
 
 namespace {
+
+std::string secuenciaTeclaTerminal(ImGuiKey tecla) {
+    switch (tecla) {
+        case ImGuiKey_UpArrow: return "\x1b[A";
+        case ImGuiKey_DownArrow: return "\x1b[B";
+        case ImGuiKey_RightArrow: return "\x1b[C";
+        case ImGuiKey_LeftArrow: return "\x1b[D";
+        case ImGuiKey_Home: return "\x1b[H";
+        case ImGuiKey_End: return "\x1b[F";
+        case ImGuiKey_Delete: return "\x1b[3~";
+        case ImGuiKey_Backspace: return "\x7f";
+        case ImGuiKey_Escape: return "\x1b";
+        default: return {};
+    }
+}
+
 std::string caracterUtf8(unsigned int caracter) {
     std::string resultado;
     if (caracter <= 0x7Fu) {
@@ -98,11 +114,11 @@ int TerminalInterface::filtrarCaracter(ImGuiInputTextCallbackData* datos) {
 
         case ImGuiInputTextFlags_CallbackHistory: {
             // Flechas arriba/abajo - enviar secuencias ANSI
-            if (datos->EventKey == ImGuiKey_UpArrow) {
-                interfaz->sesion_.escribir("\x1b[A");
-            } else if (datos->EventKey == ImGuiKey_DownArrow) {
-                interfaz->sesion_.escribir("\x1b[B");
-            }
+            const std::string secuencia = (datos->EventKey == ImGuiKey_UpArrow ||
+                                           datos->EventKey == ImGuiKey_DownArrow)
+                                              ? secuenciaTeclaTerminal(datos->EventKey)
+                                              : std::string{};
+            if (!secuencia.empty()) interfaz->sesion_.escribir(secuencia);
             return 0;
         }
 
@@ -180,11 +196,15 @@ void TerminalInterface::contentGUI() {
     const std::string respuestas = emulador_.tomarRespuestas();
     if (sesion_.estaActiva() && !respuestas.empty()) sesion_.escribir(respuestas);
 
-    // Si no hay sesión activa, limpiar el emulador para que no queden restos
-    // de la terminal anterior al volver a abrir el panel.
-    if (!sesion_.estaActiva()) {
+    // Al reaparecer el panel sin sesión (se ocultó o la shell terminó) se
+    // borra una sola vez: así la salida final drenada queda visible y no
+    // arrastra restos de la terminal anterior.
+    if (!sesion_.estaActiva() && !panelMostrado_) {
+        panelMostrado_ = true;
         emulador_ = TerminalEmulator{};
         emulador_.redimensionar(columnas_, filas_);
+    } else if (sesion_.estaActiva()) {
+        panelMostrado_ = false;
     }
 
     // InputText INVISIBLE para captura de teclado. Se crea ANTES del área de
@@ -220,26 +240,21 @@ void TerminalInterface::contentGUI() {
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(2);
 
-        // Manejo de teclas especiales NO cubiertas por callbacks
-        // (Ctrl+A-Z, Home, End, Delete, Escape, Backspace, etc.)
+        // Manejo de teclas especiales NO cubiertas por callbacks: se envian como
+        // secuencias del mapa unico (izquierda/derecha incluidas; el InputText
+        // las consumiria moviendo su propio cursor sobre un buffer vacio).
         // Enter se maneja aparte porque EnterReturnsTrue desactiva el item
         if (ImGui::IsItemActive()) {
             ImGuiIO& io = ImGui::GetIO();
 
-            if (ImGui::IsKeyPressed(ImGuiKey_Backspace, true)) {
-                sesion_.escribir("\x7f");
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_Delete, true)) {
-                sesion_.escribir("\x1b[3~");
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_Home, true)) {
-                sesion_.escribir("\x1b[H");
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_End, true)) {
-                sesion_.escribir("\x1b[F");
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_Escape, true)) {
-                sesion_.escribir("\x1b");
+            const ImGuiKey teclas[] = {ImGuiKey_LeftArrow, ImGuiKey_RightArrow,
+                                       ImGuiKey_Backspace, ImGuiKey_Delete,
+                                       ImGuiKey_Home, ImGuiKey_End,
+                                       ImGuiKey_Escape};
+            for (ImGuiKey tecla : teclas) {
+                const std::string secuencia = secuenciaTeclaTerminal(tecla);
+                if (!secuencia.empty() && ImGui::IsKeyPressed(tecla, true))
+                    sesion_.escribir(secuencia);
             }
             // Ctrl+A-Z (INCLUYE Ctrl+C=3, que ImGui usa para Copy pero nosotros
             // queremos que vaya al terminal como SIGINT)
