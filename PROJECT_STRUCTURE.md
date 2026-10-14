@@ -969,9 +969,11 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
 - `prefab-tests` (82): sistema de Prefabs: round-trip guardar → instanciar
   conservando nombre, tag, jerarquía, componentes y `Transform`, más la caché de
   `PrefabLibrary` y la validación de archivos corruptos.
-- `terminal-emulator-tests` (19): cuadrícula VT del `TerminalEmulator`: CR/LF,
+- `terminal-emulator-tests` (24): cuadrícula VT del `TerminalEmulator`: CR/LF,
   posicionamiento y consulta del cursor (`H`/`DSR`), secuencias SGR (color,
-  negrita, fondo) y borrado.
+  negrita, fondo) y borrado; CSI 1K con cursor en wrap pendiente, rejilla
+  recién redimensionada a las dimensiones por defecto, y pantalla alternativa
+  con resize (cursor restaurado acotado).
 - `terminal-session-tests` (14): E/S real del pseudo-terminal (`forkpty` en
   POSIX, ConPTY en Windows): rechazos deterministas, arranque, eco del comando y
   su salida por el PTY, y que `detener()` no se cuelga ni pierde la salida

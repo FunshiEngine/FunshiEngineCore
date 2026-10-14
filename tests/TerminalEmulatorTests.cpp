@@ -64,6 +64,39 @@ int main() {
     ajuste.redimensionar(2, 2);
     ajuste.procesar("abñ");
     CHECK(ajuste.celdas()[2].texto == "ñ", "UTF-8 ajusta línea al llegar al borde");
+
+    // CSI 1K (borrar desde el inicio hasta el cursor) con el cursor en wrap
+    // pendiente de la ultima fila: cursorX_ vale columnas_ (la posicion se
+    // paso de borde y el wrap se difiere), de modo que el extremo derecho es
+    // min(cursor, columnas-1); sin esa cota el indice llega al tamaño de la
+    // rejilla y sale del vector.
+    TerminalEmulator wrap;
+    wrap.redimensionar(4, 2);
+    wrap.procesar("\x1b[2;1Habcd");
+    CHECK(wrap.cursorX() == wrap.columnas(),
+          "escribir la ultima columna deja el cursor en wrap pendiente");
+    wrap.procesar("\x1b[1K");
+    CHECK(wrap.celdas()[7].texto == " ",
+          "CSI 1K con wrap pendiente limpia la ultima celda sin salir de la rejilla");
+    CHECK(wrap.celdas()[4].texto == " ",
+          "CSI 1K con wrap pendiente limpia la fila completa");
+
+    // Resize con pantalla alternativa activa: al salir (1049l) se restaura el
+    // cursor de la pantalla principal y debe quedar acotado a la rejilla nueva;
+    // un CSI que use ese cursor no debe salir del vector.
+    TerminalEmulator alt;
+    alt.redimensionar(80, 24);
+    alt.procesar("\x1b[21;71H");
+    alt.procesar("\x1b[?1049h");
+    alt.procesar("\x1b[2;1HX");
+    alt.redimensionar(40, 10);
+    alt.procesar("\x1b[?1049l");
+    CHECK(alt.cursorX() == alt.columnas() - 1 && alt.cursorY() == alt.filas() - 1,
+          "restaurar la pantalla principal tras redimensionar acota el cursor");
+    alt.procesar("\x1b[1J");
+    CHECK(alt.cursorX() < alt.columnas() && alt.cursorY() < alt.filas(),
+          "CSI 1J tras la restauracion mantiene el cursor dentro de la rejilla");
+
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total << " comprobaciones\n";
     return fallos == 0 ? 0 : 1;
 }

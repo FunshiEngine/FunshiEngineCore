@@ -75,6 +75,9 @@ private:
     void limpiarPantalla(unsigned modo);
     void desplazarArriba(unsigned lineas);
     void desplazarAbajo(unsigned lineas);
+    // Índice lineal acotado a la rejilla: ningún acceso a celdas puede salir
+    // del vector aunque un CSI llegue con coordenadas pasadas de borde.
+    unsigned indice(unsigned x, unsigned y) const;
     unsigned parametro(std::size_t indice, unsigned defecto) const;
     std::vector<unsigned> parametros() const;
 };
