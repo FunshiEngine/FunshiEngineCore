@@ -111,7 +111,6 @@ MotorGrafico/
 │   └── <proyecto>/
 │       ├── Memory/
 │       │   ├── Binarios/Scene        ← escenas binarias
-│       │   # ├── Interfaces/           ← assets JSON del CreadorDeInterfaces
 │       │   ├── ConfiguracionProyecto.json
 │       │   └── imgui.ini
 │       └── src<proyecto>/            ← assets del proyecto (raiz del explorador)
@@ -137,8 +136,8 @@ MotorGrafico/
 ```
 
 En el arbol, las carpetas marcadas con `#` las crea el motor al crear el proyecto
-(no hace falta hacerlas a mano). La convencion de assets por nombre usa las carpetas
-`src<proyecto>/Sonidos/` y `Memory/Interfaces/`, con mayuscula inicial. El arbol de
+(no hace falta hacerlas a mano). La convencion de assets por nombre usa la carpeta
+`src<proyecto>/Sonidos/`, con mayuscula inicial. El arbol de
 archivos del editor lista la **raiz del proyecto** (`src<nombre>`).
 
 > **Nota de packaging:** en el instalador Windows el explorador apunta a la
@@ -168,9 +167,9 @@ una **copia** (arrastre con `Ctrl`) no se rastrea, porque no cambia ninguna de
 las dos rutas; los cambios hechos **fuera** del motor (explorador de Windows,
 una terminal, un `mv`) solo sirven para refrescar el arbol de archivos, no
 reescriben nada, asi que ahi si hay que volver a arrastrar el asset en su
-inspector; y los sonidos de `src<proyecto>/Sonidos/` e interfaces de `Memory/Interfaces/` se
+inspector; y los sonidos de `src<proyecto>/Sonidos/` se
 referencian por **nombre**: un move con el mismo nombre conserva la referencia
-y un rename la rompe (vuelve a seleccionar el clip/interfaz en su dropdown).
+y un rename la rompe (vuelve a seleccionar el clip en su dropdown).
 Si una referencia quedo apuntando a un archivo que ya no existe, al **abrir la
 escena** el motor busca ese archivo por nombre dentro de la carpeta del
 proyecto: con **una sola coincidencia** repara la referencia, lo anota en el
@@ -536,7 +535,7 @@ El explorador de archivos (arbol + grid) emite el payload ImGui
 | Panel **Model** del Inspector | `Model` | path completo (buffer 4096) |
 | Panel **Script** del Inspector | `Script` | path completo del fuente (`std::string`) |
 | Dropdown **Sonido** de AudioSource | `AudioSource` | nombre del clip |
-| Dropdown **Interfaz** de InterfaceComponent | `InterfaceComponent` | nombre del asset JSON |
+| Campo **Interfaz** de InterfaceComponent | `InterfaceComponent` | ruta del `.html` (no la asigna si no es `.html`) |
 | Panel **Tilemap** del Inspector | `Tilemap` | ruta del tileset JSON (no lo asigna si no valida) |
 | Panel **Prefab** del Inspector | `Prefab` | instancia el prefab completo (jerarquía + componentes) |
 
@@ -623,12 +622,15 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 
 ## 9. Interfaces de juego (HUD)
 
-- Crea el asset de interfaz con el **CreadorDeInterfaces** (genera un JSON en
-  `Memory/Interfaces/<nombre>.json`).
-- Agrega `InterfaceComponent` a un GameObject; su inspector muestra el nombre
-  del asset (dropdown + drop desde `Memory/Interfaces/`).
-- Durante **Depuración** o **Juego**, la escena muestra esa interfaz a pantalla completa
-  delante de la camara principal (HUD del juego).
+- Agrega `InterfaceComponent` a un GameObject y arrastra un archivo `.html` al
+  campo del inspector. El `.html` referencia su CSS y su JS por rutas relativas,
+  como cualquier otro asset del proyecto.
+- El inspector permite configurar: **Activa** (si la interfaz entra en el HUD),
+  **Ancla** (nueve posiciones respecto al area de juego), **Desplazamiento**
+  desde el ancla, **Tamaño automático** (el que fija el CSS del `.html`) o un
+  **Tamaño** fijo, y **Z** (orden de apilado entre varias interfaces).
+- La escena reúne las interfaces activas y las ordena por z para el overlay del
+  juego, delante de la camara principal.
 
 ---
 
@@ -694,7 +696,7 @@ Al pulsar **Exportar**, el motor:
      junto al `.exe`.
    - `JuegoExportado.json` (metadatos del proyecto).
    
-   **NO se incluyen** archivos del editor: `Memory/Interfaces/`,
+   **NO se incluyen** archivos del editor:
    `ConfiguracionProyecto.json`, `imgui.ini` ni la estructura
    `MotorGrafico/Proyects/`.
 

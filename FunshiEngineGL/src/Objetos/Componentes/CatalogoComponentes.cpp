@@ -267,7 +267,7 @@ CatalogoComponentes::CatalogoComponentes() {
             s->setAudioEngine(ctx.audio);
             return std::unique_ptr<SettingsComponent>(s);
         });
-    add("InterfaceComponent", "InterfaceComponent",
+    add("InterfaceComponent", "Interfaz de juego (HTML)",
         DimensionesComponente::Ambas, "",
         [](GameObject&) {
             return std::unique_ptr<Component>(new InterfaceComponent());

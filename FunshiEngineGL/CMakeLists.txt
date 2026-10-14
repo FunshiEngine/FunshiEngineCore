@@ -432,6 +432,32 @@ if(WIN32)
     target_compile_definitions(interfaces-juego-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
+# --- Pruebas headless del InterfaceComponent (serializacion binaria) ---
+# El componente guarda la ruta del .html de la interfaz mas su colocacion; el
+# formato nuevo lleva una marca para distinguirse del payload viejo (solo el
+# nombre). La prueba cubre el round-trip y que el lector del formato viejo no
+# consuma bytes de mas (lo que desalinearia los componentes siguientes).
+add_executable(interface-component-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/InterfaceComponentTests.cpp
+)
+target_include_directories(interface-component-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+    ${CMAKE_SOURCE_DIR}/External/imgui
+)
+target_link_libraries(interface-component-tests PRIVATE funshi_engine)
+set_target_properties(interface-component-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME interface-component-tests COMMAND interface-component-tests)
+
+if(WIN32)
+    target_link_libraries(interface-component-tests PRIVATE dbghelp)
+    target_compile_definitions(interface-component-tests PRIVATE _HAS_STD_BYTE=0)
+endif()
+
 # --- Pruebas headless del tileset (JSON estilo Tiled) y del componente Tilemap
 # Cubre el parseo del tileset, la geometria de la grilla, el flag de solidez por
 # tile, el pintado por capas, el horneado de la malla, el round-trip binario y
@@ -576,6 +602,24 @@ set_target_properties(diagnostic-registry-tests PROPERTIES
     CXX_EXTENSIONS OFF
 )
 add_test(NAME diagnostic-registry-tests COMMAND diagnostic-registry-tests)
+
+# --- Pruebas headless del formato de la barra de progreso en texto ---
+# BarraProgresoTexto es header-only y puro (solo std): acotado de `hecha` a
+# `[0, total]` y caso `total == 0`, sin enlazar funshi_engine.
+add_executable(barra-progreso-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/BarraProgresoTextoTests.cpp
+)
+target_include_directories(barra-progreso-tests PRIVATE ${SRC_DIR})
+set_target_properties(barra-progreso-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME barra-progreso-tests COMMAND barra-progreso-tests)
+
+if(WIN32)
+    target_compile_definitions(barra-progreso-tests PRIVATE _HAS_STD_BYTE=0)
+endif()
 
 add_executable(terminal-emulator-tests
     ${SRC_DIR}/Terminal/TerminalEmulator.cpp
@@ -878,23 +922,6 @@ if(Threads_FOUND)
 endif()
 add_test(NAME audio-tests COMMAND audio-tests)
 
-# UserInterfaceCustom (asset de interfaces de usuario) headless y portatil:
-# modelo puro, solo std C++17 + nlohmann/json vendoriado. Cubre el round-trip
-# JSON de los 5 tipos de widget, la persistencia guardar/cargar en un proyecto
-# temporal y la tolerancia a JSON parcial.
-add_executable(userinterface-tests
-    ${SRC_DIR}/GUI/CreadorUI/UserInterfaceCustom.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/UserInterfaceTests.cpp
-)
-target_link_libraries(userinterface-tests PRIVATE funshi_diagnostics_core)
-target_include_directories(userinterface-tests PRIVATE ${SRC_DIR} ${CMAKE_SOURCE_DIR}/External)
-set_target_properties(userinterface-tests PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-    CXX_EXTENSIONS OFF
-)
-add_test(NAME userinterface-tests COMMAND userinterface-tests)
-
 # Prueba end-to-end del backend Java (se compila solo con FUNSHI_JAVA=ON).
 if(FUNSHI_JAVA)
     find_package(JNI REQUIRED)
@@ -952,7 +979,6 @@ if(WIN32)
     target_link_libraries(scripts-tests PRIVATE dbghelp)
     target_link_libraries(scripts-runtime-tests PRIVATE dbghelp)
     target_link_libraries(audio-tests PRIVATE dbghelp)
-    target_link_libraries(userinterface-tests PRIVATE dbghelp)
     # Evitar conflicto std::byte (C++17) vs typedef byte en headers Windows (rpcndr.h, etc.)
     target_compile_definitions(filemanager-tests PRIVATE _HAS_STD_BYTE=0)
     target_compile_definitions(assetmanager-tests PRIVATE _HAS_STD_BYTE=0)
@@ -965,7 +991,6 @@ if(WIN32)
     target_compile_definitions(scripts-tests PRIVATE _HAS_STD_BYTE=0)
     target_compile_definitions(scripts-runtime-tests PRIVATE _HAS_STD_BYTE=0)
     target_compile_definitions(audio-tests PRIVATE _HAS_STD_BYTE=0)
-    target_compile_definitions(userinterface-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
 endif() # NOT BUILD_RUNTIME (sin pruebas headless en el build runtime)

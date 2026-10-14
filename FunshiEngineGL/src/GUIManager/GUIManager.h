@@ -35,8 +35,6 @@
 #include "../GUI/DockSpaceGUI/DockSpaceInterface.h"
 #include "../GUI/Estado/StatusBarInterface.h"
 #include "../GUI/Terminal/TerminalInterface.h"
-#include "../GUI/CreadorUI/CreadorDeInterfaces.h"
-#include "../GUI/CreadorUI/CanvasInterface.h"
 #include "../Herramientas/IconosGUI/IconosGUI.h"
 #include "../FileManager/FileManager.h"
 #include "../Estructuras/ListasEnlazadas/ListasConPrioridad/PriorityListaDE.h"
@@ -73,11 +71,6 @@ private:
 	std::unique_ptr<ContentFolderInterface> contentOfThisFolder;
 	std::unique_ptr<StatusBarInterface> statusBarGUI;
 	std::unique_ptr<TerminalInterface> terminalGUI;
-	// Creador de interfaces de usuario (assets JSON) y canvas que las pinta
-	// con su sonido. Ventanas persistentes mas: anclables, alternables desde
-	// el menu "Ventanas" y con estado guardado por proyecto.
-	std::unique_ptr<CreadorDeInterfaces> creadorInterfacesGUI;
-	std::unique_ptr<CanvasInterface> canvasGUI;
 	// Motor de audio inyectado por la escena para el inspector de AudioSource.
 	AudioEngine* audioMotor = nullptr;
 
@@ -114,9 +107,6 @@ public:
 	StatusBarInterface* getStatusBarGUI();
 	TerminalInterface* getTerminalGUI() noexcept { return terminalGUI.get(); }
 
-	// Acceso a las ventanas del sistema de audio + creador de interfaces.
-	CreadorDeInterfaces* getCreadorInterfacesGUI() { return creadorInterfacesGUI.get(); }
-	CanvasInterface* getCanvasGUI() { return canvasGUI.get(); }
 	// La escena inyecta su AudioEngine (para el inspector de AudioSource).
 	void setAudioEngine(AudioEngine* motor);
 

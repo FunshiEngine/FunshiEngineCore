@@ -49,8 +49,6 @@ class TextureManager;
 class Script;
 class SceneRenderer;
 class AudioEngine;
-class CanvasInterface;
-class CreadorDeInterfaces;
 class MiniAudioBackend;
 class GizmoController;
 

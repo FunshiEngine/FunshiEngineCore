@@ -18,13 +18,13 @@
 */
 // Pruebas headless de la recoleccion de interfaces de juego (HUD). La funcion
 // InterfacesJuego::recolectarDeEscena recorre la lista de objetos de la escena
-// y devuelve todos los InterfaceComponent con una interfaz referenciada; de
+// y devuelve las interfaces activas con ruta referenciada, ordenadas por z; de
 // ella depende que una escena con varias interfaces no oculte las demas por el
 // simple hecho de aparecer despues en la lista. Se verifica que:
 //   - una lista nula o vacia no devuelve nada,
 //   - los objetos sin InterfaceComponent no aportan nada,
-//   - una escena con varias interfaces las devuelve TODAS, en orden,
-//   - las interfaces sin nombre (nombre vacio) se omiten sin cortar el recorrido.
+//   - una escena con varias interfaces las devuelve TODAS, en orden de z,
+//   - las interfaces sin ruta o inactivas se omiten sin cortar el recorrido.
 //
 // Patron de autoria (ver AGENTS.md): CHECK definido en este archivo, sin
 // dependencias de GUI, y salida final "OK/FALLOS: N comprobaciones".
@@ -54,12 +54,15 @@ int fallos = 0;
 
 namespace {
 
-// Objeto con un InterfaceComponent que referencia `nombre` (vacio = sin
+// Objeto con un InterfaceComponent que referencia `ruta` (vacio = sin
 // referencia). El objeto queda vivo mientras el unique_ptr lo posea.
-std::unique_ptr<GameObject> conInterfaz(const std::string& nombre) {
+std::unique_ptr<GameObject> conInterfaz(const std::string& ruta,
+                                        float z = 0.0f, bool activo = true) {
     auto obj = GameObjectFactory::createSimpleObject(nullptr);
     auto ic = std::make_unique<InterfaceComponent>();
-    ic->setInterfaz(nombre);
+    ic->setRutaHtml(ruta);
+    ic->setZ(z);
+    ic->setActivo(activo);
     obj->addComponent(std::move(ic));
     return obj;
 }
@@ -93,12 +96,12 @@ void sinInterfaces() {
           "los objetos sin InterfaceComponent no aportan interfaces");
 }
 
-// Una escena con varias interfaces las devuelve TODAS, en el orden de la lista.
-// Es el caso que el recorrido viejo rompia al cortar en el primero.
-void variasInterfacesEnOrden() {
-    auto a = conInterfaz("HUD A");
-    auto b = conInterfaz("HUD B");
-    auto c = conInterfaz("HUD C");
+// Una escena con varias interfaces las devuelve TODAS, en orden de z. Es el
+// caso que el recorrido viejo rompia al cortar en el primero.
+void variasInterfacesEnOrdenPorZ() {
+    auto a = conInterfaz("a.html", 5.0f);
+    auto b = conInterfaz("b.html", -2.0f);
+    auto c = conInterfaz("c.html", 0.0f);
     ListaDE<GameObject*> objetos;
     objetos.addLast(a.get());
     objetos.addLast(b.get());
@@ -110,42 +113,42 @@ void variasInterfacesEnOrden() {
     CHECK(interfaces.size() == 3,
           "se recolectan las tres interfaces de la escena");
     if (interfaces.size() == 3) {
-        CHECK(interfaces[0]->getInterfaz() == "HUD A",
-              "la primera interfaz conserva el orden");
-        CHECK(interfaces[1]->getInterfaz() == "HUD B",
-              "la segunda interfaz conserva el orden");
-        CHECK(interfaces[2]->getInterfaz() == "HUD C",
-              "la tercera interfaz conserva el orden");
+        CHECK(interfaces[0]->getRutaHtml() == "b.html",
+              "primero la interfaz de menor z");
+        CHECK(interfaces[1]->getRutaHtml() == "c.html",
+              "luego la de z intermedia");
+        CHECK(interfaces[2]->getRutaHtml() == "a.html",
+              "al final la de mayor z");
     }
 }
 
-// Las interfaces sin nombre (nombre vacio) se omiten, y su presencia no corta
-// el recorrido: los objetos posteriores con interfaz si se recolectan.
-void nombreVacioSeOmiteSinCortar() {
-    auto vacia = conInterfaz("");
-    auto sin = sinInterfaz();
-    auto real = conInterfaz("HUD real");
+// Las interfaces sin ruta o inactivas se omiten, y su presencia no corta el
+// recorrido: los objetos posteriores con interfaz activa si se recolectan.
+void inactivasOSinRutaSeOmiten() {
+    auto sinRuta = conInterfaz("");
+    auto inactiva = conInterfaz("oculta.html", 0.0f, false);
+    auto real = conInterfaz("visible.html", 1.0f, true);
     ListaDE<GameObject*> objetos;
-    objetos.addLast(vacia.get());
-    objetos.addLast(sin.get());
+    objetos.addLast(sinRuta.get());
+    objetos.addLast(inactiva.get());
     objetos.addLast(real.get());
 
     std::vector<InterfaceComponent*> interfaces =
         InterfacesJuego::recolectarDeEscena(&objetos);
 
     CHECK(interfaces.size() == 1,
-          "solo se recolecta la interfaz con nombre no vacio");
+          "solo se recolecta la interfaz activa con ruta");
     if (interfaces.size() == 1) {
-        CHECK(interfaces[0]->getInterfaz() == "HUD real",
-              "la interfaz recolectada es la que tenia nombre");
+        CHECK(interfaces[0]->getRutaHtml() == "visible.html",
+              "la interfaz recolectada es la activa con ruta");
     }
 }
 
 int main() {
     listaNulaOVacia();
     sinInterfaces();
-    variasInterfacesEnOrden();
-    nombreVacioSeOmiteSinCortar();
+    variasInterfacesEnOrdenPorZ();
+    inactivasOSinRutaSeOmiten();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

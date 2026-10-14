@@ -129,10 +129,6 @@ public:
     // <directorioProyecto>/src<nombreProyecto>/Scripts
     static std::string directorioScripts(const std::string& nombreProyecto = "Nuevo Proyecto");
 
-    // Carpeta de interfaces de usuario creadas (assets JSON del creador de
-    // interfaces): <directorioMemory>/Interfaces
-    static std::string directorioInterfaces(const std::string& nombreProyecto = "Nuevo Proyecto");
-
     // Directorio de exportaciones: <directorioBase>/Exportaciones/<nombreExportacion>/
     // Cada exportación es una carpeta independiente con el juego compilado + Data/
     static std::string directorioExportaciones();
@@ -145,7 +141,6 @@ public:
 
     // Crea en disco la estructura de carpetas requerida para el proyecto:
     //   <directorioBase>/Proyects/<nombreProyecto>/Memory/Binarios/Scene
-    //   <directorioBase>/Proyects/<nombreProyecto>/Memory/Interfaces
     //   <directorioBase>/Proyects/<nombreProyecto>/src<nombreProyecto>/Sonidos
     //   <directorioBase>/Proyects/<nombreProyecto>/src<nombreProyecto>
     //   <directorioBase>/Configuraciones/Configuracion.json

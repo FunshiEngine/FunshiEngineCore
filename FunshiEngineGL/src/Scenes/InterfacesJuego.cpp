@@ -18,6 +18,8 @@
 */
 #include "InterfacesJuego.h"
 
+#include <algorithm>
+
 #include "../Objetos/Componentes/InterfaceComponent.h"
 #include "../Objetos/GameObject.h"
 
@@ -33,7 +35,8 @@ std::vector<InterfaceComponent*> recolectarDeEscena(
         GameObject* objeto = posicion->getElement();
         if (objeto != nullptr) {
             if (auto* interfaz = objeto->getComponent<InterfaceComponent>()) {
-                if (!interfaz->getInterfaz().empty()) {
+                if (interfaz->estaActiva() &&
+                    !interfaz->getRutaHtml().empty()) {
                     interfaces.push_back(interfaz);
                 }
             }
@@ -42,6 +45,14 @@ std::vector<InterfaceComponent*> recolectarDeEscena(
         posicion = (posicion != objetos->last()) ? objetos->next(posicion)
                                                  : nullptr;
     }
+
+    // Orden de dibujo por z ascendente (el de mayor z queda encima). El orden de
+    // escena se conserva entre interfaces con la misma z.
+    std::stable_sort(interfaces.begin(), interfaces.end(),
+                     [](const InterfaceComponent* a,
+                        const InterfaceComponent* b) {
+                         return a->getZ() < b->getZ();
+                     });
     return interfaces;
 }
 

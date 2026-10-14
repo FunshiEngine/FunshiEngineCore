@@ -310,10 +310,6 @@ std::string directorioBinarios(const std::string& nombreProyecto) {
     return directorioMemory(nombreProyecto) + "/Binarios";
 }
 
-std::string directorioInterfaces(const std::string& nombreProyecto) {
-    return directorioMemory(nombreProyecto) + "/Interfaces";
-}
-
 std::string nombreRaizSrc(const std::string& nombreProyecto) {
     const std::string nombre = nombreProyecto.empty() ? "Nuevo Proyecto" : nombreProyecto;
     return "src" + nombre;

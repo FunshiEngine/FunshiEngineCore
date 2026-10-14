@@ -279,7 +279,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   │                                 densidad fija: no hay tamaño/separación)
         │   │   ├── AudioSource/SettingsAudioSource.* ← dropdown de clip (src<proyecto>/Sonidos/),
         │   │   │                                 volumen, loop
-        │   │   ├── Interface/SettingsInterface.* ← dropdown de asset de interfaz (Memory/Interfaces/)
+        │   │   ├── Interface/SettingsInterface.* ← ruta del .html de la interfaz
+        │   │   │                                 (drag & drop) + activa, ancla, tamaño y z
         │   │   ├── Skybox/SettingsSkybox.*       ← visible + las seis caras del cubemap
         │   │   │   └── SelectorArchivoCubemap.h ← modal de elección de cara (header-only):
         │   │   │                                la lógica que decide (extensiones válidas,
@@ -288,8 +289,6 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   │                                las ejercite un target headless sin ImGui
         │   │   ├── RigidBody/SettingsRigidBody.*
         │   │   └── Colliders/ (Esfera, Cubo, Malla, Tilemap) ← sync transform/shape con física
-        │   ├── CreadorUI/                        ← Creador de interfaces (editor de HUD;
-        │   │                                      UserInterfaceCustom, JSON en Memory/Interfaces/)
         │   ├── Export/
         │   │   └── ExportDialog.h/.cpp           ← diálogo de exportación del juego standalone
         │   │                                      (arma `GameExporter::Config` y lo lanza)
@@ -400,9 +399,9 @@ FunshiEngineGL/                          ← raíz del repo
             ├── GameScene.h/.cpp          ← coordinador del frame: render, GUI, física, gizmo,
             │                                previews y pasada de la grilla
             ├── InterfacesJuego.h/.cpp    ← recolección de las interfaces de juego (HUD) de la
-            │                                escena: recorre TODOS los objetos y devuelve los
-            │                                InterfaceComponent referenciados, en orden (lógica
-            │                                pura, sin GL ni GUI, probada headless)
+            │                                escena: recorre TODOS los objetos y devuelve las
+            │                                InterfaceComponent activas y con ruta, ordenadas por
+            │                                z (lógica pura, sin GL ni GUI, probada headless)
             ├── GizmoController.h/.cpp   ← gizmo ImGuizmo + picking (desde GameScene): estado
             │                                (operación/global/listo), arrastre con
             │                                TransformComando (historial) y congelación de
@@ -702,7 +701,7 @@ solo como orquestador de arranque y bucle.
     vuelca el pendiente sin esperar.
   - El layout `imgui.ini` también se guarda junto al proyecto (no en el CWD).
 - Carpeta de un proyecto: `Proyects/<proyecto>/` con `Memory/` (escena,
-  configuración del proyecto e `imgui.ini`), `Memory/Interfaces/` y la raíz de
+  configuración del proyecto e `imgui.ini`) y la raíz de
   assets `src<proyecto>/` (meshes, texturas, materiales, `Sonidos/`,
   `Scripts/`). Todas esas rutas salen de `ProjectPaths`
   (`directorioSrc`, `directorioSonidos`, `directorioScripts`), incluido el
@@ -832,13 +831,13 @@ La convención general es un par `.h`/`.cpp` por clase. Las excepciones son:
 al build sin enumerarlos manualmente. Los archivos de ImGui se recopilan por separado
 desde `src/ImGui/` y los de ImGuizmo desde `ImGuizmo/` (fuera de `src/`).
 
-Además del ejecutable, el proyecto define **veintisiete targets de prueba
+Además del ejecutable, el proyecto define **veintiocho targets de prueba
 headless** registrados en CTest (`scripts-java-tests` solo se registra con
-`-DFUNSHI_JAVA=ON`; nueve de ellos viven bajo `BUILD_ENGINE=ON`
+`-DFUNSHI_JAVA=ON`; diez de ellos viven bajo `BUILD_ENGINE=ON`
 —`comandos-tests`, `escena-serializacion-tests`, `catalogo-componentes-tests`,
-`tilemap-tests`, `interfaces-juego-tests`, `prefab-tests`,
-`manifiesto-assets-tests`, `orquestador-estado-tests` y `tema-tests`—, y el
-resto compila también con `BUILD_ENGINE=OFF`):
+`tilemap-tests`, `interfaces-juego-tests`, `interface-component-tests`,
+`prefab-tests`, `manifiesto-assets-tests`, `orquestador-estado-tests` y
+`tema-tests`—, y el resto compila también con `BUILD_ENGINE=OFF`):
 
 - `filemanager-tests` (190 en Linux; 181 en Windows con MinGW, 183 con MSVC): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
   contra un proyecto temporal, sin ventanas ni pila gráfica; incluye el arrastre
@@ -929,10 +928,12 @@ resto compila también con `BUILD_ENGINE=OFF`):
   largos).
 - `audio-tests` (16): `AudioEngine`/`AudioClipsManager` con `NullAudioBackend`
   (contrato de la cola de comandos: clips, handles, encolado, detención, volumen).
-- `userinterface-tests` (42): `UserInterfaceCustom` (modelo del Creador de
-  interfaces, `src/GUI/CreadorUI/`): round-trip JSON de los 5 tipos de widget,
-  guardar/cargar y tolerancia a JSON parcial; y `BarraProgresoTexto` (formato de
-  la barra de la ventana Estado, acotado ante `hecha > total` y `total == 0`).
+- `interface-component-tests` (16): serialización binaria del `InterfaceComponent`
+  (ruta del `.html` + colocación): round-trip del formato nuevo y lectura del
+  formato viejo (solo el nombre) sin consumir bytes de más, que desalinearía el
+  resto del objeto.
+- `barra-progreso-tests` (8): `BarraProgresoTexto` (formato de la barra de la
+  ventana Estado, acotado ante `hecha > total` y `total == 0`).
 - `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia`): el acento
   llega a todos los roles de ImGui y el modo B/N deja la paleta monocroma.
 - `comandos-tests` (77): undo/redo del editor (7 comandos, cadena de redo
@@ -973,8 +974,8 @@ resto compila también con `BUILD_ENGINE=OFF`):
 - `interfaces-juego-tests` (9): la recolección de interfaces de juego (HUD):
   `InterfacesJuego::recolectarDeEscena` sobre la lista de objetos de la escena
   (lista nula o vacía sin resultados, objetos sin `InterfaceComponent` que no
-  aportan, una escena con varias interfaces que las devuelve TODAS en orden y
-  las interfaces sin nombre omitidas sin cortar el recorrido).
+  aportan, una escena con varias interfaces que las devuelve TODAS ordenadas por
+  z y las interfaces sin ruta o inactivas omitidas sin cortar el recorrido).
 - `prefab-tests` (82): sistema de Prefabs: round-trip guardar → instanciar
   conservando nombre, tag, jerarquía, componentes y `Transform`, más la caché de
   `PrefabLibrary` y la validación de archivos corruptos.
@@ -986,11 +987,11 @@ resto compila también con `BUILD_ENGINE=OFF`):
   su salida por el PTY, y que `detener()` no se cuelga ni pierde la salida
   emitida durante el cierre (SKIP 77 si ConPTY no está disponible).
 
-Las nueve suites del bloque editor (`comandos-tests`, `escena-serializacion-tests`,
+Las diez suites del bloque editor (`comandos-tests`, `escena-serializacion-tests`,
 `catalogo-componentes-tests`, `tilemap-tests`, `interfaces-juego-tests`,
-`prefab-tests`, `manifiesto-assets-tests`, `orquestador-estado-tests` y
-`tema-tests`) solo se compilan con `BUILD_ENGINE=ON`, porque enlazan
-`funshi_engine` o sus fuentes directamente.
+`interface-component-tests`, `prefab-tests`, `manifiesto-assets-tests`,
+`orquestador-estado-tests` y `tema-tests`) solo se compilan con `BUILD_ENGINE=ON`,
+porque enlazan `funshi_engine` o sus fuentes directamente.
 
 La opción `BUILD_ENGINE=OFF` compila solo las pruebas (útil en CI y plataformas
 sin las librerías gráficas), y `ENABLE_ASAN` (ON por defecto en Debug) activa

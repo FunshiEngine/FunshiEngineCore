@@ -71,7 +71,6 @@ bool ProjectManager::crearEstructuraProyecto(const std::string& nombre) {
     const std::string mem = ProjectPaths::directorioMemory(nombre);
     const std::string src = ProjectPaths::directorioSrc(nombre);
     const std::string sonidos = ProjectPaths::directorioSonidos(nombre);
-    const std::string interfaces = ProjectPaths::directorioInterfaces(nombre);
     const std::string binScene = ProjectPaths::rutaSceneDir(nombre);
 
     const std::string proyectoDir = ProjectPaths::directorioProyecto(nombre);
@@ -202,8 +201,7 @@ bool ProjectManager::crearProyectoNuevo(const std::string& nombre,
         fs::path(ProjectPaths::directorioMemory(nombre)) / "Binarios" / "Scene",
         fs::path(ProjectPaths::directorioSrc(nombre)),
         fs::path(ProjectPaths::directorioSonidos(nombre)),
-        fs::path(ProjectPaths::directorioScripts(nombre)),
-        fs::path(ProjectPaths::directorioInterfaces(nombre))};
+        fs::path(ProjectPaths::directorioScripts(nombre))};
     std::vector<fs::path> creados;
     for (const fs::path& directorio : directorios) {
         error.clear();

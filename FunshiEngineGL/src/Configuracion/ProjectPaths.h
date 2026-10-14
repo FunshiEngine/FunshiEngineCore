@@ -86,7 +86,6 @@ std::string directorioProyecto(const std::string& nombreProyecto);
 // Subcarpetas del proyecto
 std::string directorioMemory(const std::string& nombreProyecto);
 std::string directorioBinarios(const std::string& nombreProyecto);
-std::string directorioInterfaces(const std::string& nombreProyecto);
 std::string nombreRaizSrc(const std::string& nombreProyecto);
 std::string directorioSrc(const std::string& nombreProyecto);
 std::string directorioSonidos(const std::string& nombreProyecto);

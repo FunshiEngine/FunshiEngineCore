@@ -110,10 +110,6 @@ std::string EditorConfig::directorioScripts(const std::string& nombreProyecto) {
     return ProjectPaths::directorioScripts(nombreProyecto);
 }
 
-std::string EditorConfig::directorioInterfaces(const std::string& nombreProyecto) {
-    return ProjectPaths::directorioInterfaces(nombreProyecto);
-}
-
 std::string EditorConfig::directorioExportaciones() {
     return ProjectPaths::directorioExportaciones();
 }
