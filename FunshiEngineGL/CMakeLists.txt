@@ -533,6 +533,22 @@ if(BUILD_FUNSHI_CLI AND NOT BUILD_RUNTIME)
         FUNSHI_VERSION="${PROJECT_VERSION}")
     target_link_libraries(FunshiCLI PRIVATE
         funshi_engine funshi_project_core funshi_diagnostics_core)
+
+    # Prueba headless del CLI: verifica respuesta JSON, eco de id y
+    # apiVersion. El binario del CLI se resuelve junto a este ejecutable
+    # (mismo directorio de build), con .exe en Windows, para funcionar en
+    # local y en CI sin rutas absolutas.
+    add_executable(cli-tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/../tests/CliTests.cpp
+    )
+    target_include_directories(cli-tests PRIVATE
+        ${SRC_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+    set_target_properties(cli-tests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+    )
+    add_test(NAME cli-tests COMMAND cli-tests)
 endif()
 
 if(NOT BUILD_RUNTIME)
