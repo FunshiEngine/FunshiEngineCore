@@ -28,10 +28,12 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <string>
 #include <vector>
 
 #include "TempPruebas.h"
+#include "../FunshiEngineGL/src/Behaviour/ScriptGameObject.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
@@ -543,6 +545,71 @@ void prefabHijoConComponenteExtra() {
     EditorConfig::limpiarRaizAssets();
 }
 
+// 7. La API de scripts lista los prefabs con punteros validos.
+// `servicios->listarPrefabs()` devolvia los c_str() de un vector<string>
+// local que se destruia al salir: los punteros quedaban colgantes (los lee
+// bajo ASan el ctest). El contrato los hace validos hasta la llamada
+// siguiente, asi que cada llamada se copia en el acto y se compara copias.
+void serviciosListarPrefabs() {
+    TempPruebas::CarpetaPrueba carpeta("funshi_prefab_servicios");
+    const fs::path base = carpeta.ruta();
+
+    EditorConfig::limpiarRaizAssets();
+    EditorConfig::fijarRaizAssets(base.string());
+
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    GameObject* raiz = registry.getRoot();
+
+    auto objeto = GameObjectFactory::createSimpleObject(raiz);
+    std::snprintf(objeto->inputName, sizeof(objeto->inputName), "ParaServicios");
+    GameObject* creado = editor.createGameObject(std::move(objeto), raiz);
+    CHECK(creado != nullptr, "objeto para servicios creado");
+
+    Prefab prefab("ParaServicios");
+    CHECK(prefab.guardarDesdeObjeto(creado, &editor), "prefab se guarda para servicios");
+
+    PrefabLibrary* biblioteca = editor.getPrefabLibrary();
+    CHECK(biblioteca != nullptr, "el editor expone su biblioteca de prefabs");
+    if (!biblioteca) {
+        EditorConfig::limpiarRaizAssets();
+        return;
+    }
+    biblioteca->recargar();
+
+    MotorScript::inyectarServiciosScript(nullptr, &registry, nullptr, nullptr,
+                                         &editor);
+    const MotorScript::ScriptServices* servicios = MotorScript::tablaServicios();
+    const char** primera = servicios->listarPrefabs();
+    CHECK(primera != nullptr, "listarPrefabs devuelve el array");
+    std::set<std::string> antes;
+    if (primera) {
+        int cantidad = 0;
+        for (const char** p = primera; *p; ++p) {
+            ++cantidad;
+            antes.insert(*p);
+        }
+        CHECK(cantidad >= 1, "listarPrefabs incluye al menos un prefab");
+        CHECK(antes.count("ParaServicios") == 1,
+              "listarPrefabs incluye el prefab guardado");
+    }
+
+    // Una segunda llamada reconstruye los mismos nombres; se comparan copias
+    // porque el array es valido solo hasta la llamada siguiente.
+    const char** segunda = servicios->listarPrefabs();
+    CHECK(segunda != nullptr, "segunda llamada a listarPrefabs devuelve el array");
+    if (segunda) {
+        std::set<std::string> despues;
+        for (const char** p = segunda; *p; ++p) despues.insert(*p);
+        CHECK(despues == antes, "los nombres se mantienen entre llamadas");
+    }
+
+    MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
+    EditorConfig::limpiarRaizAssets();
+}
+
 // --- Main --------------------------------------------------------------------
 
 int main() {
@@ -554,6 +621,7 @@ int main() {
     instanciarPrefabInexistente();
     multiplesInstanciasMismoPrefab();
     prefabHijoConComponenteExtra();
+    serviciosListarPrefabs();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

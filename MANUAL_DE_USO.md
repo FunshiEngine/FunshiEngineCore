@@ -1093,7 +1093,7 @@ Misma convencion APPEND-ONLY con `servicios->version` al final.
 | `servicios->agregarColliderCubo(obj,radio)` (v4) | `bool (void*, float)` | agrega collider cubo; mismas condiciones |
 | `servicios->agregarRigidBody(obj,masa)` (v4) | `bool (void*, float)` | agrega cuerpo con masa; `false` si no hay collider o ya tiene cuerpo |
 | `servicios->instanciarPrefab("Enemigo",padre)` (v5) | `void* (const char*, void*)` | instancia un prefab por nombre como hijo de `padre` (`nullptr` = raiz). Devuelve la raiz de la instancia (valida al final del frame). |
-| `servicios->listarPrefabs()` (v5) | `const char** ()` | lista los nombres de prefabs disponibles; array terminado en `nullptr`. |
+| `servicios->listarPrefabs()` (v5) | `const char** ()` | lista los nombres de prefabs disponibles; array terminado en `nullptr`, válido hasta la siguiente llamada (copiar en el acto). |
 
 Los deltas del mouse se acumulan durante el frame y se reinician al avanzar al
 siguiente. Se capturan en Juego y cuando el cursor esta bloqueado durante
