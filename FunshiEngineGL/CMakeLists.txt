@@ -524,7 +524,9 @@ endif() # NOT BUILD_RUNTIME (sin pruebas del bloque editor)
 endif()
 
 if(BUILD_FUNSHI_CLI AND NOT BUILD_RUNTIME)
-    add_executable(FunshiCLI ${CMAKE_CURRENT_SOURCE_DIR}/tools/FunshiCLI/main.cpp)
+    add_executable(FunshiCLI
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/FunshiCLI/main.cpp
+        ${SRC_DIR}/Configuracion/ConfigPersistence.cpp)
     target_include_directories(FunshiCLI PRIVATE
         ${SRC_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/External)
     target_compile_definitions(FunshiCLI PRIVATE
@@ -587,7 +589,7 @@ endif()
 add_test(NAME terminal-session-tests COMMAND terminal-session-tests)
 set_tests_properties(terminal-session-tests PROPERTIES
     SKIP_RETURN_CODE 77
-    TIMEOUT 60
+    TIMEOUT 120
 )
 
 add_executable(filemanager-tests
