@@ -370,12 +370,30 @@ bool TerminalSession::escribir(const std::string& texto) {
     return true;
 #else
     std::size_t offset = 0;
+    // Reintentos acotados ante EAGAIN (buffer PTY lleno). poll(POLLOUT)
+    // espera a que el descriptor esté listo para escritura.
+    constexpr int kMaxReintentosEagain = 5;
+    int reintentosEagain = 0;
     while (offset < texto.size()) {
         const ssize_t escritos = ::write(impl_->terminal, texto.data() + offset,
                                          texto.size() - offset);
-        if (escritos < 0 && errno == EINTR) continue;
-        if (escritos <= 0) return false;
+        if (escritos < 0) {
+            if (errno == EINTR) continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                if (reintentosEagain >= kMaxReintentosEagain) return false;
+                struct pollfd fd = {impl_->terminal, POLLOUT, 0};
+                if (::poll(&fd, 1, 200) <= 0) {
+                    ++reintentosEagain;
+                    continue;
+                }
+                ++reintentosEagain;
+                continue;
+            }
+            return false;
+        }
+        if (escritos == 0) return false;
         offset += static_cast<std::size_t>(escritos);
+        reintentosEagain = 0;
     }
     return true;
 #endif
