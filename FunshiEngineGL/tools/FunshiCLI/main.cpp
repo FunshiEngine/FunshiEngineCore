@@ -129,6 +129,24 @@ void registrarError(const std::string& codigo, const std::string& mensaje) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
+    // B4: la resolución de --project se difiere al comando que la necesite.
+    // B5: política consistente de registro — errores de uso (invocation errors)
+    // solo van al JSON de salida; errores operacionales sí se registran.
+    auto registrarErrorUso = [](const std::string& codigo,
+                                const std::string& mensaje) {
+        // Solo JSON de salida, sin tocar el log compartido.
+        (void)codigo; (void)mensaje;
+    };
+    auto registrarErrorOperacional = [](const std::string& codigo,
+                                        const std::string& mensaje) {
+        EventoDiagnostico evento;
+        evento.nivel = NivelDiagnostico::Error;
+        evento.modulo = "FunshiCLI";
+        evento.tipoExcepcion = codigo;
+        evento.mensaje = mensaje;
+        RegistroDiagnosticos::global().registrar(std::move(evento));
+    };
+
     if (argc == 2 && (std::string(argv[1]) == "help" ||
                       std::string(argv[1]) == "--help" ||
                       std::string(argv[1]) == "-h")) {
@@ -160,27 +178,20 @@ int main(int argc, char* argv[]) {
         } else if (argumento == "--request-file" && i + 1 < argc) {
             archivoSolicitud = argv[++i];
         } else {
+            registrarErrorUso("invalid_arguments",
+                              "Argumento no reconocido o incompleto: " + argumento);
             imprimirJson(respuestaError("invalid_arguments",
-                                        "Argumento no reconocido o incompleto: " +
-                                            argumento));
+                                        "Argumento no reconocido o incompleto: " + argumento));
             return 2;
         }
     }
     if (stdinSolicitud == !archivoSolicitud.empty()) {
+        registrarErrorUso("invalid_arguments",
+                          "Indica exactamente una fuente: --request o --request-file");
         imprimirJson(respuestaError(
             "invalid_arguments",
             "Indica exactamente una fuente: --request o --request-file"));
         return 2;
-    }
-
-    ProjectManager::Proyecto proyecto;
-    if (!rutaProyecto.empty()) {
-        std::string error;
-        if (!resolverProyecto(rutaProyecto, proyecto, error)) {
-            registrarError("invalid_project", error);
-            imprimirJson(respuestaError("invalid_project", error));
-            return 3;
-        }
     }
 
     std::string textoSolicitud;
@@ -190,6 +201,8 @@ int main(int argc, char* argv[]) {
     } else {
         std::ifstream entrada(archivoSolicitud, std::ios::binary);
         if (!entrada) {
+            registrarErrorUso("request_file_unavailable",
+                              "No se pudo leer el archivo de solicitud");
             imprimirJson(respuestaError("request_file_unavailable",
                                         "No se pudo leer el archivo de solicitud"));
             return 2;
@@ -202,12 +215,13 @@ int main(int argc, char* argv[]) {
     try {
         solicitud = json::parse(textoSolicitud);
     } catch (const json::exception& excepcion) {
-        registrarError("invalid_json", excepcion.what());
+        registrarErrorUso("invalid_json", excepcion.what());
         imprimirJson(respuestaError("invalid_json", excepcion.what()));
         return 2;
     }
     if (!solicitud.is_object() || !solicitud.contains("command") ||
         !solicitud["command"].is_string()) {
+        registrarErrorUso("invalid_request", "La solicitud requiere un campo command de tipo string");
         imprimirJson(respuestaError(
             "invalid_request", "La solicitud requiere un campo command de tipo string"));
         return 2;
@@ -216,6 +230,7 @@ int main(int argc, char* argv[]) {
     const std::string comando = solicitud["command"].get<std::string>();
     const json argumentos = solicitud.value("args", json::object());
     if (!argumentos.is_object()) {
+        registrarErrorUso("invalid_request", "args debe ser un objeto JSON");
         imprimirJson(respuestaError("invalid_request", "args debe ser un objeto JSON"));
         return 2;
     }
@@ -232,8 +247,8 @@ int main(int argc, char* argv[]) {
     }
     if (comando == "project.create") {
         if (argumentos.contains("name") && !argumentos["name"].is_string()) {
-            imprimirJson(respuestaError(
-                "invalid_request", "args.name debe ser un string"));
+            registrarErrorUso("invalid_request", "args.name debe ser un string");
+            imprimirJson(respuestaError("invalid_request", "args.name debe ser un string"));
             return 2;
         }
         const std::string nombre = argumentos.value("name", std::string{});
@@ -250,7 +265,7 @@ int main(int argc, char* argv[]) {
                     : codigo == "invalid_project_name"
                           ? "El nombre del proyecto no es valido"
                           : error.message();
-            registrarError(codigo, mensaje);
+            registrarErrorOperacional(codigo, mensaje);
             imprimirJson(respuestaError(codigo, mensaje));
             return 1;
         }
@@ -270,8 +285,8 @@ int main(int argc, char* argv[]) {
         if (argumentos.contains("limit")) {
             const json& valorLimite = argumentos["limit"];
             if (!valorLimite.is_number_integer()) {
-                imprimirJson(respuestaError(
-                    "invalid_request", "args.limit debe ser un entero no negativo"));
+                registrarErrorUso("invalid_request", "args.limit debe ser un entero no negativo");
+                imprimirJson(respuestaError("invalid_request", "args.limit debe ser un entero no negativo"));
                 return 2;
             }
             if (valorLimite.is_number_unsigned()) {
@@ -281,9 +296,8 @@ int main(int argc, char* argv[]) {
             } else {
                 const long long valorEntero = valorLimite.get<long long>();
                 if (valorEntero < 0) {
-                    imprimirJson(respuestaError(
-                        "invalid_request",
-                        "args.limit debe ser un entero no negativo"));
+                    registrarErrorUso("invalid_request", "args.limit debe ser un entero no negativo");
+                    imprimirJson(respuestaError("invalid_request", "args.limit debe ser un entero no negativo"));
                     return 2;
                 }
                 limite = static_cast<std::size_t>(
@@ -300,7 +314,7 @@ int main(int argc, char* argv[]) {
     }
 
     const std::string mensaje = "Comando no encontrado: " + comando;
-    registrarError("unknown_command", mensaje);
+    registrarErrorUso("unknown_command", mensaje);
     imprimirJson(respuestaError("unknown_command", mensaje));
     return 2;
 }
