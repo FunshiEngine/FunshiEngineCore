@@ -532,7 +532,7 @@ if(BUILD_FUNSHI_CLI AND NOT BUILD_RUNTIME)
     target_compile_definitions(FunshiCLI PRIVATE
         FUNSHI_VERSION="${PROJECT_VERSION}")
     target_link_libraries(FunshiCLI PRIVATE
-        funshi_project_core funshi_diagnostics_core)
+        funshi_engine funshi_project_core funshi_diagnostics_core)
 endif()
 
 if(NOT BUILD_RUNTIME)

@@ -52,12 +52,27 @@
 namespace {
 constexpr std::size_t kMaxSalida = 1024 * 1024;
 
+// Retrocede desde 'pos' hasta encontrar el inicio de un codepoint UTF-8 válido
+// (byte que NO sea byte de continuación 0x80-0xBF). Si no hay codepoint
+// completo, devuelve 0.
+std::size_t inicioCodepointUtf8(const std::string& s, std::size_t pos) {
+    while (pos > 0 && (static_cast<unsigned char>(s[pos - 1]) & 0xC0) == 0x80) {
+        --pos;
+    }
+    return pos;
+}
+
 void agregarSalida(std::mutex& mutex, std::string& destino,
                    const char* datos, std::size_t cantidad) {
     std::lock_guard<std::mutex> bloqueo(mutex);
     destino.append(datos, cantidad);
-    if (destino.size() > kMaxSalida)
-        destino.erase(0, destino.size() - kMaxSalida);
+    if (destino.size() > kMaxSalida) {
+        // Cortar alineado al inicio de un codepoint UTF-8 para no dejar
+        // bytes de continuación huérfanos que corromperían el emulador.
+        const std::size_t corteBruto = destino.size() - kMaxSalida;
+        const std::size_t corte = inicioCodepointUtf8(destino, corteBruto);
+        destino.erase(0, corte);
+    }
 }
 
 #if defined(_WIN32)
@@ -99,6 +114,9 @@ struct TerminalSession::Impl {
     // Se pone en true al salir del lector para que detener() pueda esperar el
     // hilo con un deadline acotado en lugar de un join() potencialmente eterno.
     std::atomic<bool> lecturaTerminada{false};
+    // true si el proceso hijo ya fue reapeado (por el lector al detectar EOF).
+    // Evita doble reap en detener().
+    std::atomic<bool> hijoReapeado{false};
     std::mutex mutexLector;
     std::condition_variable condicionLector;
 #endif
@@ -148,6 +166,12 @@ struct TerminalSession::Impl {
             } else if (leidos < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
                 continue;
             } else {
+                // EOF o error terminal: reapear el hijo para evitar zombie
+                if (proceso > 0) {
+                    int estado = 0;
+                    waitpid(proceso, &estado, WNOHANG);
+                    hijoReapeado.store(true, std::memory_order_release);
+                }
                 break;
             }
         }
@@ -348,6 +372,7 @@ fallo_windows:
     if (banderas >= 0) ::fcntl(impl_->terminal, F_SETFL, banderas | O_NONBLOCK);
     impl_->parada.store(false, std::memory_order_release);
     impl_->lecturaTerminada.store(false, std::memory_order_release);
+    impl_->hijoReapeado.store(false, std::memory_order_release);
     impl_->activa.store(true, std::memory_order_release);
     impl_->hiloLectura = std::thread([this] { impl_->leer(); });
     return true;
@@ -493,11 +518,14 @@ void TerminalSession::detener() {
         impl_->terminal = -1;
     }
     if (impl_->proceso > 0) {
-        int estado = 0;
-        pid_t resultado = waitpid(impl_->proceso, &estado, WNOHANG);
-        if (resultado == 0) {
-            kill(-impl_->proceso, SIGKILL);
-            while (waitpid(impl_->proceso, &estado, 0) < 0 && errno == EINTR) {
+        // Evitar doble reap: si el lector ya lo reapeó, solo marcar.
+        if (!impl_->hijoReapeado.load(std::memory_order_acquire)) {
+            int estado = 0;
+            pid_t resultado = waitpid(impl_->proceso, &estado, WNOHANG);
+            if (resultado == 0) {
+                kill(-impl_->proceso, SIGKILL);
+                while (waitpid(impl_->proceso, &estado, 0) < 0 && errno == EINTR) {
+                }
             }
         }
         impl_->proceso = -1;
