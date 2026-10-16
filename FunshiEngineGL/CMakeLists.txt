@@ -432,32 +432,6 @@ if(WIN32)
     target_compile_definitions(interfaces-juego-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
-# --- Pruebas headless del InterfaceComponent (serializacion binaria) ---
-# El componente guarda la ruta del .html de la interfaz mas su colocacion; el
-# formato nuevo lleva una marca para distinguirse del payload viejo (solo el
-# nombre). La prueba cubre el round-trip y que el lector del formato viejo no
-# consuma bytes de mas (lo que desalinearia los componentes siguientes).
-add_executable(interface-component-tests
-    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/InterfaceComponentTests.cpp
-)
-target_include_directories(interface-component-tests PRIVATE
-    ${SRC_DIR}
-    ${CMAKE_SOURCE_DIR}/External
-    ${CMAKE_SOURCE_DIR}/External/imgui
-)
-target_link_libraries(interface-component-tests PRIVATE funshi_engine)
-set_target_properties(interface-component-tests PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-    CXX_EXTENSIONS OFF
-)
-add_test(NAME interface-component-tests COMMAND interface-component-tests)
-
-if(WIN32)
-    target_link_libraries(interface-component-tests PRIVATE dbghelp)
-    target_compile_definitions(interface-component-tests PRIVATE _HAS_STD_BYTE=0)
-endif()
-
 # --- Pruebas headless del tileset (JSON estilo Tiled) y del componente Tilemap
 # Cubre el parseo del tileset, la geometria de la grilla, el flag de solidez por
 # tile, el pintado por capas, el horneado de la malla, el round-trip binario y
@@ -619,6 +593,33 @@ add_test(NAME barra-progreso-tests COMMAND barra-progreso-tests)
 
 if(WIN32)
     target_compile_definitions(barra-progreso-tests PRIVATE _HAS_STD_BYTE=0)
+endif()
+
+# --- Pruebas headless del InterfaceComponent (serializacion binaria) ---
+# El componente guarda la ruta del .html de la interfaz mas su colocacion; el
+# formato nuevo lleva una marca para distinguirse del payload viejo (solo el
+# nombre). La prueba cubre el round-trip y que el lector del formato viejo no
+# consuma bytes de mas (lo que desalinearia los componentes siguientes). Compila
+# InterfaceComponent.cpp suelto (solo std + glm, sin funshi_engine) para correr
+# tambien en el job headless con BUILD_ENGINE=OFF.
+add_executable(interface-component-tests
+    ${SRC_DIR}/Objetos/Componentes/InterfaceComponent.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/InterfaceComponentTests.cpp
+)
+target_link_libraries(interface-component-tests PRIVATE funshi_diagnostics_core)
+target_include_directories(interface-component-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+)
+set_target_properties(interface-component-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME interface-component-tests COMMAND interface-component-tests)
+
+if(WIN32)
+    target_compile_definitions(interface-component-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
 add_executable(terminal-emulator-tests
