@@ -32,6 +32,7 @@
 #include "../Configuracion/Apariencia.h"
 #include "../Configuracion/DimensionProyecto.h"
 #include "../Audio/AudioClipsManager.h"
+#include "../WebUI/VistasWebUI.h"
 
 class CameraComponent;
 class EditorController;
@@ -133,6 +134,12 @@ private:
     // gameScene() a su propio modulo. Se construye en el cuerpo del ctor (la
     // seleccion la inyecta GUIManager en el cuerpo) y vive toda la escena.
     std::unique_ptr<GizmoController> gizmoController_;
+    // Vistas web vivas de las interfaces de juego activas (una por interfaz):
+    // pintarInterfacesJuego() las carga/avanza/descarga. La GUI las dibuja con
+    // el handle de textura que entrega el runtime web; el backend nulo no
+    // produce textura, asi que no se dibuja nada hasta que exista un backend
+    // real.
+    VistasWebUI vistasWebUI_;
     // Dimension del proyecto (2D plano / 3D con profundidad). La fija main y el
     // gestor de proyectos antes de cargar la escena; gobierna la siembra de la
     // grilla, la posicion de la camara inicial y (fase de render) el modo 2D.

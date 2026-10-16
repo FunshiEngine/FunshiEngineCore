@@ -76,6 +76,11 @@ option(BUILD_ENGINE "Build engine library and executable" ON)
 # Por defecto ON: si el build encuentra el JDK se habilita solo, si no, el
 # backend Java se omite sin romper la compilacion de nada.
 option(FUNSHI_JAVA "Soporte de scripts Java via JNI (requiere JDK en build)" ON)
+# Soporte de interfaces de juego web (HUD en HTML/CSS/JS). El contrato
+# (IWebUIBackend) y el backend nulo se compilan siempre; esta opcion habilita los
+# backends web reales (p. ej. CEF) cuando el motor se enlaza con sus
+# dependencias. Sin ningun backend real el runtime cae al nulo y no dibuja nada.
+option(FUNSHI_WEBUI "Soporte de interfaces web (backend CEF)" ON)
 # Build runtime-only: solo la libreria del motor, sin ejecutable del editor ni
 # objetivos de prueba. Lo usa el exportador de juegos para compilar el binario
 # standalone (add_subdirectory de la raiz del engine con esta opcion FORZADA).
@@ -133,6 +138,13 @@ if(BUILD_ENGINE)
     endif() # NOT BUILD_RUNTIME (sin ejecutable del editor)
     target_include_directories(funshi_engine PUBLIC ${SRC_DIR})
     target_compile_definitions(funshi_engine PUBLIC GLM_ENABLE_EXPERIMENTAL)
+
+    # El subsistema de interfaces web (WebUI) se compila siempre (contrato +
+    # backend nulo, sin dependencias). FUNSHI_WEBUI habilita el registro de los
+    # backends reales; hoy no existe ninguno, asi que solo queda declarada.
+    if(FUNSHI_WEBUI)
+        target_compile_definitions(funshi_engine PUBLIC FUNSHI_WEBUI)
+    endif()
 
     # Soporte opcional de scripts Java (JNI). Se detecta el JDK con FindJNI y
     # se embeben las rutas de javac/libjvm para el runtime (se pueden
@@ -620,6 +632,32 @@ add_test(NAME interface-component-tests COMMAND interface-component-tests)
 
 if(WIN32)
     target_compile_definitions(interface-component-tests PRIVATE _HAS_STD_BYTE=0)
+endif()
+
+# --- Pruebas headless del runtime de interfaces web (HUD) ---
+# WebUIRuntime (registro/seleccion/despacho) y VistasWebUI (ciclo de vida de las
+# vistas) corren enteros con el backend nulo, sin CEF ni GL. Compilan sueltos
+# (solo std + glm) para correr tambien en el job con BUILD_ENGINE=OFF.
+add_executable(webui-runtime-tests
+    ${SRC_DIR}/WebUI/WebUIRuntime.cpp
+    ${SRC_DIR}/WebUI/VistasWebUI.cpp
+    ${SRC_DIR}/Objetos/Componentes/InterfaceComponent.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/WebUIRuntimeTests.cpp
+)
+target_link_libraries(webui-runtime-tests PRIVATE funshi_diagnostics_core)
+target_include_directories(webui-runtime-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+)
+set_target_properties(webui-runtime-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME webui-runtime-tests COMMAND webui-runtime-tests)
+
+if(WIN32)
+    target_compile_definitions(webui-runtime-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
 add_executable(terminal-emulator-tests

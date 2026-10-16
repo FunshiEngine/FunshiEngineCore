@@ -395,6 +395,19 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── AgregarComponenteComando.h/.cpp
         │   ├── QuitarComponenteComando.h/.cpp
         │   └── LimpiarEscenaComando.h/.cpp
+        ├── WebUI/
+        │   ├── VistaWebUI.h             ← una interfaz web ya montada por un backend
+        │   │                               (estado opaco + ruta .html + textura/handle + área)
+        │   ├── IWebUIBackend.h          ← contrato del motor web (Strategy): cargar,
+        │   │                               redimensionar, actualizar, render, input
+        │   │                               (ratón/tecla/rueda/foco), descargar, apagar
+        │   ├── BackendNull.h            ← backend sin motor (no-op): corre el ciclo
+        │   │                               completo headless, sin CEF ni GL (tests/CI)
+        │   ├── WebUIRuntime.h/.cpp      ← registro + selección de backend (por config,
+        │   │                               con fallback al nulo) y despacho de todo
+        │   └── VistasWebUI.h/.cpp       ← vistas vivas de una escena, una por interfaz
+        │                                   activa: carga, recarga por cambio de .html,
+        │                                   redimensiona y descarga (lógica sin GL)
         └── Scenes/
             ├── GameScene.h/.cpp          ← coordinador del frame: render, GUI, física, gizmo,
             │                                previews y pasada de la grilla
@@ -796,6 +809,31 @@ solo como orquestador de arranque y bucle.
   carpeta el backend avisa antes de invocar al compilador, en vez de dejar que
   falle con un `-I` inexistente.
 
+### Interfaces de juego web
+
+Las interfaces gráficas de los juegos (HUD) se escriben en HTML/CSS/JS y se
+montan sobre un motor web embebido. El subsistema vive en `src/WebUI/` y sigue
+el patrón Strategy + registro de los backends de audio y de scripts:
+
+- El `InterfaceComponent` guarda solo la ruta del `.html` (con su colocación:
+  ancla, desplazamiento, tamaño y `z`); el motor web resuelve los recursos
+  relativos (CSS, JS, imágenes) por sí mismo.
+- `IWebUIBackend` es el contrato del motor web: `cargar`, `redimensionar`,
+  `actualizar`, `render` (que devuelve el handle de textura para ImGui), el
+  input neutral (ratón con `BotonRatonWebUI`, rueda, teclado por código de
+  tecla y foco), `descargar` y `apagar`.
+- `WebUIRuntime` es la fachada de despacho: mantiene un registro de backends y
+  selecciona el activo (por configuración, con fallback al nulo ante un nombre
+  desconocido). Es la única puerta que usa el resto del motor.
+- `BackendNullWebUI` corre el ciclo completo sin motor web ni GL, para tests
+  headless y CI; los backends reales se registran bajo `-DFUNSHI_WEBUI=ON`.
+- `VistasWebUI` gobierna las vistas vivas de una escena (una por interfaz
+  activa): las da de alta, recarga al cambiar la ruta del `.html`,
+  redimensiona, avanza y descarta las que dejan de estar activas.
+- `GameScene` recolecta las interfaces activas (`InterfacesJuego`), sincroniza
+  `VistasWebUI` con el tamaño del área de juego y dibuja cada vista con su
+  textura vía el *draw list* de ImGui, respetando el orden por `z`.
+
 ---
 
 ## 5. Dependencias externas
@@ -831,11 +869,11 @@ La convención general es un par `.h`/`.cpp` por clase. Las excepciones son:
 al build sin enumerarlos manualmente. Los archivos de ImGui se recopilan por separado
 desde `src/ImGui/` y los de ImGuizmo desde `ImGuizmo/` (fuera de `src/`).
 
-Además del ejecutable, el proyecto define **veintiocho targets de prueba
+Además del ejecutable, el proyecto define **veintinueve targets de prueba
 headless** registrados en CTest (`scripts-java-tests` solo se registra con
-`-DFUNSHI_JAVA=ON`; diez de ellos viven bajo `BUILD_ENGINE=ON`
+`-DFUNSHI_JAVA=ON`; nueve de ellos viven bajo `BUILD_ENGINE=ON`
 —`comandos-tests`, `escena-serializacion-tests`, `catalogo-componentes-tests`,
-`tilemap-tests`, `interfaces-juego-tests`, `interface-component-tests`,
+`tilemap-tests`, `interfaces-juego-tests`,
 `prefab-tests`, `manifiesto-assets-tests`, `orquestador-estado-tests` y
 `tema-tests`—, y el resto compila también con `BUILD_ENGINE=OFF`):
 
@@ -934,6 +972,11 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   resto del objeto.
 - `barra-progreso-tests` (8): `BarraProgresoTexto` (formato de la barra de la
   ventana Estado, acotado ante `hecha > total` y `total == 0`).
+- `webui-runtime-tests` (25): `WebUIRuntime` y `VistasWebUI` sobre el backend
+  nulo: selección de backend con fallback al nulo ante un nombre desconocido,
+  ciclo de vida de una vista sin motor web (`cargar`→`actualizar`→`render`→
+  `descargar`) y el gestor de vistas de una escena (alta, recarga al cambiar la
+  ruta del `.html`, redimensionado y descarte de las que dejan de estar activas).
 - `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia`): el acento
   llega a todos los roles de ImGui y el modo B/N deja la paleta monocroma.
 - `comandos-tests` (77): undo/redo del editor (7 comandos, cadena de redo
@@ -987,11 +1030,13 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   su salida por el PTY, y que `detener()` no se cuelga ni pierde la salida
   emitida durante el cierre (SKIP 77 si ConPTY no está disponible).
 
-Las diez suites del bloque editor (`comandos-tests`, `escena-serializacion-tests`,
-`catalogo-componentes-tests`, `tilemap-tests`, `interfaces-juego-tests`,
-`interface-component-tests`, `prefab-tests`, `manifiesto-assets-tests`,
-`orquestador-estado-tests` y `tema-tests`) solo se compilan con `BUILD_ENGINE=ON`,
-porque enlazan `funshi_engine` o sus fuentes directamente.
+Las **nueve** suites que dependen del engine (`comandos-tests`,
+`escena-serializacion-tests`, `catalogo-componentes-tests`, `tilemap-tests`,
+`interfaces-juego-tests`, `prefab-tests`, `manifiesto-assets-tests`,
+`orquestador-estado-tests` y `tema-tests`) enlazan `funshi_engine` y solo se
+registran con `BUILD_ENGINE=ON`. El resto compila sus fuentes directamente
+(`interface-component-tests`, `barra-progreso-tests` y `webui-runtime-tests`
+entre ellos) y corre también con `BUILD_ENGINE=OFF`.
 
 La opción `BUILD_ENGINE=OFF` compila solo las pruebas (útil en CI y plataformas
 sin las librerías gráficas), y `ENABLE_ASAN` (ON por defecto en Debug) activa

@@ -131,6 +131,9 @@ GameScene::GameScene(GUIManager* manager)
 GameScene::~GameScene() {
     ReflejoScripts::fijarResolverObjetos(nullptr);
     eliminarSnapshotSimulacion();
+    // Descarga las vistas web vivas antes de que muera la escena (con un backend
+    // real libera sus recursos; con el nulo es no-op).
+    vistasWebUI_.vaciar();
     // Libera las geometrias cacheadas del SceneRenderer (meshes SUV + grilla)
     // si se llegaron a compilar. En el flujo normal main() crea GameScene con
     // new y no la destruye antes de glfwTerminate, asi que esto es higiene
@@ -716,14 +719,41 @@ void GameScene::GUI() {
 }
 
 void GameScene::pintarInterfacesJuego() {
-    // Overlay de las interfaces de juego (HUD). La recoleccion corre siempre,
-    // tambien en el juego exportado (sin GUI del editor): junta TODAS las
-    // interfaces activas de la escena ordenadas por z, para que una escena con
-    // varias no oculte las demas. El dibujado lo aportara el backend de
-    // interfaz web, que consumira esta lista.
+    // Recoleccion de TODAS las interfaces activas de la escena, ordenadas por z,
+    // tambien en el juego exportado (sin GUI del editor): una escena con varias
+    // no debe ocultar las demas.
     std::vector<InterfaceComponent*> interfaces =
         InterfacesJuego::recolectarDeEscena(getGameObjectsScene());
-    (void)interfaces;
+
+    const ImGuiIO& io = ImGui::GetIO();
+    const int ancho = static_cast<int>(io.DisplaySize.x);
+    const int alto = static_cast<int>(io.DisplaySize.y);
+
+    // Ciclo de vida de las vistas: carga las nuevas, ajusta el area al
+    // contenedor, avanza (actualizar + render) las existentes y descarga las que
+    // ya no estan. Lo hace el runtime web; con el backend nulo no hay motor web
+    // y no se dibuja nada, pero el ciclo corre entero.
+    vistasWebUI_.sincronizar(interfaces, ancho, alto, deltaTime);
+
+    // Composicion del frame: cada vista que ya entrega textura se dibuja sobre
+    // la escena con su handle opaco. La colocacion es provisional (centrada en
+    // el viewport + desplazamiento); el sistema completo de ancla/tamano/z lo
+    // resuelve el lienzo de juego.
+    ImDrawList* dibujo = ImGui::GetForegroundDrawList();
+    for (InterfaceComponent* interfaz : interfaces) {
+        const VistaWebUI* vista = vistasWebUI_.buscar(interfaz);
+        if (!vista || !vista->handleImGui || vista->ancho <= 0 ||
+            vista->alto <= 0)
+            continue;
+        const glm::vec2 desplazamiento = interfaz->getDesplazamiento();
+        const float x =
+            (io.DisplaySize.x - static_cast<float>(vista->ancho)) * 0.5f +
+            desplazamiento.x;
+        const float y = (io.DisplaySize.y - static_cast<float>(vista->alto)) * 0.5f
+                        + desplazamiento.y;
+        dibujo->AddImage(vista->handleImGui, ImVec2(x, y),
+                         ImVec2(x + vista->ancho, y + vista->alto));
+    }
 }
 
 void GameScene::pintarViewportsGUI() {
