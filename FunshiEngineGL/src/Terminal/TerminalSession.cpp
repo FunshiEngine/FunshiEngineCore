@@ -40,7 +40,9 @@
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <climits>
+#include <condition_variable>
 #include <cstring>
 #include <filesystem>
 #include <mutex>
@@ -50,12 +52,27 @@
 namespace {
 constexpr std::size_t kMaxSalida = 1024 * 1024;
 
+// Retrocede desde 'pos' hasta encontrar el inicio de un codepoint UTF-8 válido
+// (byte que NO sea byte de continuación 0x80-0xBF). Si no hay codepoint
+// completo, devuelve 0.
+std::size_t inicioCodepointUtf8(const std::string& s, std::size_t pos) {
+    while (pos > 0 && (static_cast<unsigned char>(s[pos - 1]) & 0xC0) == 0x80) {
+        --pos;
+    }
+    return pos;
+}
+
 void agregarSalida(std::mutex& mutex, std::string& destino,
                    const char* datos, std::size_t cantidad) {
     std::lock_guard<std::mutex> bloqueo(mutex);
     destino.append(datos, cantidad);
-    if (destino.size() > kMaxSalida)
-        destino.erase(0, destino.size() - kMaxSalida);
+    if (destino.size() > kMaxSalida) {
+        // Cortar alineado al inicio de un codepoint UTF-8 para no dejar
+        // bytes de continuación huérfanos que corromperían el emulador.
+        const std::size_t corteBruto = destino.size() - kMaxSalida;
+        const std::size_t corte = inicioCodepointUtf8(destino, corteBruto);
+        destino.erase(0, corte);
+    }
 }
 
 #if defined(_WIN32)
@@ -90,6 +107,18 @@ struct TerminalSession::Impl {
     // Señal de parada solicitada por detener(): el lector la usa para acotar su
     // espera y drenar la salida final aunque la shell no muera de inmediato.
     std::atomic<bool> parada{false};
+    // Instante (reloj monotónico) en que detener() pidió la parada: la ventana
+    // de gracia del lector es absoluta desde ese instante y no se reinicia
+    // con datos, para que una emisión continua no impida la salida.
+    std::chrono::steady_clock::time_point limiteParada{};
+    // Se pone en true al salir del lector para que detener() pueda esperar el
+    // hilo con un deadline acotado en lugar de un join() potencialmente eterno.
+    std::atomic<bool> lecturaTerminada{false};
+    // true si el proceso hijo ya fue reapeado (por el lector al detectar EOF).
+    // Evita doble reap en detener().
+    std::atomic<bool> hijoReapeado{false};
+    std::mutex mutexLector;
+    std::condition_variable condicionLector;
 #endif
 
     void leer() {
@@ -111,21 +140,22 @@ struct TerminalSession::Impl {
         struct pollfd descriptor {};
         descriptor.fd = terminal;
         descriptor.events = POLLIN;
-        int inactivo = 0;
+        // Ventana absoluta de gracia: detener() fija limiteParada al pedir la
+        // parada y el lector sale 500 ms despues aunque siga llegando salida,
+        // para que una emision continua no impida terminar ni el join.
+        const auto limite = limiteParada + std::chrono::milliseconds(500);
         for (;;) {
             const int listo = ::poll(&descriptor, 1, 100);
             if (listo < 0) {
                 if (errno == EINTR) continue;
                 break;
             }
-            if (listo == 0) {
-                if (parada.load(std::memory_order_acquire) && ++inactivo >= 5) {
-                    drenarResto(bloque, sizeof(bloque));
-                    break;
-                }
-                continue;
+            if (parada.load(std::memory_order_acquire) &&
+                std::chrono::steady_clock::now() >= limite) {
+                drenarResto(bloque, sizeof(bloque));
+                break;
             }
-            inactivo = 0;
+            if (listo == 0) continue;
             if (!(descriptor.revents & (POLLIN | POLLHUP | POLLERR))) continue;
             const ssize_t leidos = ::read(terminal, bloque, sizeof(bloque));
             if (leidos > 0) {
@@ -136,11 +166,19 @@ struct TerminalSession::Impl {
             } else if (leidos < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
                 continue;
             } else {
+                // EOF o error terminal: reapear el hijo para evitar zombie
+                if (proceso > 0) {
+                    int estado = 0;
+                    waitpid(proceso, &estado, WNOHANG);
+                    hijoReapeado.store(true, std::memory_order_release);
+                }
                 break;
             }
         }
 #endif
         activa.store(false, std::memory_order_release);
+        lecturaTerminada.store(true, std::memory_order_release);
+        condicionLector.notify_all();
     }
 
 #if !defined(_WIN32)
@@ -333,6 +371,8 @@ fallo_windows:
     const int banderas = ::fcntl(impl_->terminal, F_GETFL, 0);
     if (banderas >= 0) ::fcntl(impl_->terminal, F_SETFL, banderas | O_NONBLOCK);
     impl_->parada.store(false, std::memory_order_release);
+    impl_->lecturaTerminada.store(false, std::memory_order_release);
+    impl_->hijoReapeado.store(false, std::memory_order_release);
     impl_->activa.store(true, std::memory_order_release);
     impl_->hiloLectura = std::thread([this] { impl_->leer(); });
     return true;
@@ -355,12 +395,30 @@ bool TerminalSession::escribir(const std::string& texto) {
     return true;
 #else
     std::size_t offset = 0;
+    // Reintentos acotados ante EAGAIN (buffer PTY lleno). poll(POLLOUT)
+    // espera a que el descriptor esté listo para escritura.
+    constexpr int kMaxReintentosEagain = 5;
+    int reintentosEagain = 0;
     while (offset < texto.size()) {
         const ssize_t escritos = ::write(impl_->terminal, texto.data() + offset,
                                          texto.size() - offset);
-        if (escritos < 0 && errno == EINTR) continue;
-        if (escritos <= 0) return false;
+        if (escritos < 0) {
+            if (errno == EINTR) continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                if (reintentosEagain >= kMaxReintentosEagain) return false;
+                struct pollfd fd = {impl_->terminal, POLLOUT, 0};
+                if (::poll(&fd, 1, 200) <= 0) {
+                    ++reintentosEagain;
+                    continue;
+                }
+                ++reintentosEagain;
+                continue;
+            }
+            return false;
+        }
+        if (escritos == 0) return false;
         offset += static_cast<std::size_t>(escritos);
+        reintentosEagain = 0;
     }
     return true;
 #endif
@@ -431,23 +489,43 @@ void TerminalSession::detener() {
         impl_->trabajo = nullptr;
     }
 #else
-    // Pedir la parada y colgar el grupo de la shell; el lector drena hasta el
-    // cierre del esclavo (o vence su ventana de gracia) antes de cerrar el
-    // maestro, de modo que la salida final no se pierda y join() no dependa de
-    // que close() despierte un read() bloqueado.
+    // Pedir la parada y colgar el grupo de la shell. Si la shell muere, el
+    // lector drena la salida final hasta el cierre del esclavo; si la ignora
+    // y sigue emitiendo, la ventana absoluta de gracia lo saca igual. El join
+    // espera con un deadline acotado y, si vence, se escala a SIGKILL antes
+    // de cerrar el maestro: cerrar el maestro nunca es lo que despierta el
+    // read() y el join() nunca cuelga la UI.
     impl_->parada.store(true, std::memory_order_release);
+    impl_->limiteParada = std::chrono::steady_clock::now();
+    impl_->condicionLector.notify_all();
     if (impl_->proceso > 0) kill(-impl_->proceso, SIGHUP);
+    {
+        std::unique_lock<std::mutex> bloqueo(impl_->mutexLector);
+        impl_->condicionLector.wait_for(
+            bloqueo, std::chrono::seconds(5),
+            [this] { return impl_->lecturaTerminada.load(std::memory_order_acquire); });
+    }
+    if (!impl_->lecturaTerminada.load(std::memory_order_acquire)) {
+        if (impl_->proceso > 0) kill(-impl_->proceso, SIGKILL);
+        std::unique_lock<std::mutex> bloqueo(impl_->mutexLector);
+        impl_->condicionLector.wait_for(
+            bloqueo, std::chrono::seconds(5),
+            [this] { return impl_->lecturaTerminada.load(std::memory_order_acquire); });
+    }
     if (impl_->hiloLectura.joinable()) impl_->hiloLectura.join();
     if (impl_->terminal >= 0) {
         ::close(impl_->terminal);
         impl_->terminal = -1;
     }
     if (impl_->proceso > 0) {
-        int estado = 0;
-        pid_t resultado = waitpid(impl_->proceso, &estado, WNOHANG);
-        if (resultado == 0) {
-            kill(-impl_->proceso, SIGKILL);
-            while (waitpid(impl_->proceso, &estado, 0) < 0 && errno == EINTR) {
+        // Evitar doble reap: si el lector ya lo reapeó, solo marcar.
+        if (!impl_->hijoReapeado.load(std::memory_order_acquire)) {
+            int estado = 0;
+            pid_t resultado = waitpid(impl_->proceso, &estado, WNOHANG);
+            if (resultado == 0) {
+                kill(-impl_->proceso, SIGKILL);
+                while (waitpid(impl_->proceso, &estado, 0) < 0 && errno == EINTR) {
+                }
             }
         }
         impl_->proceso = -1;

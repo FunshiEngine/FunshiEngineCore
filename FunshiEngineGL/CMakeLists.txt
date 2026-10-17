@@ -714,13 +714,31 @@ endif() # NOT BUILD_RUNTIME (sin pruebas del bloque editor)
 endif()
 
 if(BUILD_FUNSHI_CLI AND NOT BUILD_RUNTIME)
-    add_executable(FunshiCLI ${CMAKE_CURRENT_SOURCE_DIR}/tools/FunshiCLI/main.cpp)
+    add_executable(FunshiCLI
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/FunshiCLI/main.cpp
+        ${SRC_DIR}/Configuracion/ConfigPersistence.cpp)
     target_include_directories(FunshiCLI PRIVATE
         ${SRC_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/External)
     target_compile_definitions(FunshiCLI PRIVATE
         FUNSHI_VERSION="${PROJECT_VERSION}")
     target_link_libraries(FunshiCLI PRIVATE
-        funshi_project_core funshi_diagnostics_core)
+        funshi_engine funshi_project_core funshi_diagnostics_core)
+
+    # Prueba headless del CLI: verifica respuesta JSON, eco de id y
+    # apiVersion. El binario del CLI se resuelve junto a este ejecutable
+    # (mismo directorio de build), con .exe en Windows, para funcionar en
+    # local y en CI sin rutas absolutas.
+    add_executable(cli-tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/../tests/CliTests.cpp
+    )
+    target_include_directories(cli-tests PRIVATE
+        ${SRC_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+    set_target_properties(cli-tests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+    )
+    add_test(NAME cli-tests COMMAND cli-tests)
 endif()
 
 if(NOT BUILD_RUNTIME)
@@ -849,7 +867,7 @@ endif()
 add_test(NAME terminal-session-tests COMMAND terminal-session-tests)
 set_tests_properties(terminal-session-tests PROPERTIES
     SKIP_RETURN_CODE 77
-    TIMEOUT 60
+    TIMEOUT 120
 )
 
 add_executable(filemanager-tests

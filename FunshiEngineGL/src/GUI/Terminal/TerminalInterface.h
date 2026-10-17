@@ -45,6 +45,10 @@ private:
     unsigned columnas_ = 80;
     unsigned filas_ = 24;
     bool iniciarPendiente_ = false;
+    // Rastrea si el emulador ya se limpió desde que no hay sesión: el borrado
+    // es one-shot al reaparecer (no por frame), para conservar la salida
+    // final drenada de la shell terminada.
+    bool panelMostrado_ = false;
 
     void iniciar();
     static int filtrarCaracter(ImGuiInputTextCallbackData* datos);

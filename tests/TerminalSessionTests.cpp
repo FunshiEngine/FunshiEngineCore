@@ -234,6 +234,38 @@ int main() {
                   "la salida emitida durante detener() no se pierde");
         }
     }
+
+    // 8. detener() con emision continua que ignora SIGHUP: el lector tiene una
+    //    ventana absoluta de gracia y el join espera con deadline escalando a
+    //    SIGKILL, asi que detener() regresa aunque la shell no muera con
+    //    SIGHUP y siga escribiendo. Contra el codigo previo a la ventana
+    //    absoluta, el join se colgaba porque cada tramo de salida reiniciaba
+    //    la espera.
+    {
+        TerminalSession sesionSorda;
+        std::string errorSorda;
+        const bool okSorda = sesionSorda.iniciar(shellDeLaPlataforma(),
+                                                 directorio, 80, 24,
+                                                 errorSorda);
+        CHECK(okSorda, "iniciar sesion de emision continua (" + errorSorda + ")");
+        if (okSorda) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            sesionSorda.escribir(
+                "trap '' HUP\nwhile :; do echo FLUJO_CONTINUO; done\n");
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+            const bool detenida = detenerConTimeout(sesionSorda, 15000);
+            CHECK(detenida,
+                  "detener() con shell sorda que emite sin parar regresa "
+                  "dentro del deadline");
+            if (!detenida) {
+                std::cout << "FALLOS: detener() no regreso con shell sorda; "
+                             "terminando sin esperar al hilo\n";
+                std::cout.flush();
+                std::_Exit(1);
+            }
+        }
+    }
 #endif
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
