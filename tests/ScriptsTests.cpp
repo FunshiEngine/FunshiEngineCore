@@ -91,6 +91,23 @@ struct Oleada {
     REFLECT_FIN
 };
 
+// Tipo destino de una referencia a componente (TagTipo::Componente). La
+// reflexion lo trata como puntero opaco: solo guarda el nombre del objeto dueno.
+struct RecursoHUD {};
+
+class ComportamientoConHUD : public IScriptBehaviour {
+public:
+    RecursoHUD* panel = nullptr;
+
+    void onStart(GameObject*) override {}
+    void onUpdate(GameObject*, float) override {}
+    void onStop(GameObject*) override {}
+
+    REFLECT_INICIO(ComportamientoConHUD)
+    REFLECT_COMPONENTE(panel, "InterfaceComponent")
+    REFLECT_FIN
+};
+
 class PruebaComportamiento : public IScriptBehaviour {
 public:
     int vidas = 3;
@@ -283,6 +300,81 @@ static void testObjetoResolucion() {
     CHECK(b.enemigos.size() == 2 && b.enemigos[0] == nullptr &&
               b.enemigos[1] == nullptr,
           "vector de objetos resuelto a nulos");
+}
+
+static void testComponenteResolucion() {
+    const std::vector<DefCampo>& defs = ComportamientoConHUD::reflexion();
+    CHECK(defs.size() == 1 && defs[0].tag == TagTipo::Componente,
+          "el campo de componente se refleja con su tag");
+    CHECK(defs[0].tipoComponente == "InterfaceComponent",
+          "el campo conserva el nombre del tipo de componente");
+
+    ComportamientoConHUD b;
+
+    // Sin resolvers: el nombre no tiene a quien apuntar => nullptr.
+    fijarResolverComponentes(ResolverComponentes{});
+    ValorCampo v = valorPorDefecto(defs[0]);
+    v.contenido = std::string("Panel");
+    escribirCampo(defs[0], &b, v);
+    CHECK(b.panel == nullptr, "sin resolver el componente queda nulo");
+
+    RecursoHUD componente;
+    fijarResolverComponentes(ResolverComponentes{
+        [&componente](const std::string& nombre,
+                      const std::string& tipo) -> void* {
+            return (nombre == "Panel" && tipo == "InterfaceComponent")
+                       ? static_cast<void*>(&componente)
+                       : nullptr;
+        },
+        [&componente](const void* puntero, const std::string&) -> std::string {
+            return puntero == static_cast<const void*>(&componente)
+                       ? std::string("Panel")
+                       : std::string{};
+        }});
+
+    escribirCampo(defs[0], &b, v);
+    CHECK(b.panel == &componente,
+          "el componente se resuelve por nombre de objeto + tipo");
+
+    ValorCampo leido = leerCampo(defs[0], &b);
+    CHECK(leido.tag == TagTipo::Componente &&
+              leido.como<std::string>() == "Panel",
+          "leer el componente devuelve el nombre del objeto dueno");
+
+    // Round-trip binario: se persiste el nombre del dueno, no el puntero.
+    TempPruebas::CarpetaPrueba carpeta("funshi_reflexion_componente");
+    const std::filesystem::path ruta = carpeta.ruta() / "componente.bin";
+    {
+        std::ofstream out(ruta, std::ios::binary | std::ios::trunc);
+        CHECK(out.good(), "abrir archivo temporal de componente");
+        std::vector<ValorCampo> valores{leido};
+        guardarValoresCampos(out, valores);
+        out.close();
+    }
+    {
+        std::ifstream in(ruta, std::ios::binary);
+        std::vector<ValorCampo> cargados = cargarValoresCampos(in, defs);
+        CHECK(cargados.size() == 1 &&
+                  cargados[0].como<std::string>() == "Panel",
+              "round-trip del componente conserva el nombre del dueno");
+    }
+
+    // Un objeto inexistente deja la referencia nula.
+    v.contenido = std::string("NoExiste");
+    escribirCampo(defs[0], &b, v);
+    CHECK(b.panel == nullptr, "objeto inexistente deja el componente nulo");
+
+    // Un resolver que no encuentra nada tampoco resuelve.
+    fijarResolverComponentes(ResolverComponentes{
+        [](const std::string&, const std::string&) -> void* { return nullptr; },
+        [](const void*, const std::string&) -> std::string {
+            return std::string{};
+        }});
+    v.contenido = std::string("Panel");
+    escribirCampo(defs[0], &b, v);
+    CHECK(b.panel == nullptr, "resolver que no encuentra deja nulo");
+
+    fijarResolverComponentes(ResolverComponentes{});
 }
 
 static void testSerializacionBinaria() {
@@ -1078,6 +1170,7 @@ int main(int argc, char** argv) {
     testLecturaEscritura();
     testGruposVector();
     testObjetoResolucion();
+    testComponenteResolucion();
     testSerializacionBinaria();
     testAlinearValores();
     testEntradaDeScripts();

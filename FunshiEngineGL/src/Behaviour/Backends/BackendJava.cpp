@@ -115,6 +115,12 @@ const char* SRC_NATIVO =
     "    public static native boolean agregarRigidBody(long objeto, float masa);\n"
     "    public static native long instanciarPrefab(String nombre, long padre);\n"
     "    public static native String[] listarPrefabs();\n"
+    "    public static native long interfazDeObjeto(String nombreObjeto);\n"
+    "    public static native boolean interfazActiva(long interfaz);\n"
+    "    public static native void interfazEstablecerActiva(long interfaz, boolean activa);\n"
+    "    public static native boolean interfazEstablecerEstado(long interfaz, String jsonEstado);\n"
+    "    public static native boolean interfazEstablecerValor(long interfaz, String clave, String valorJson);\n"
+    "    public static native String interfazValor(long interfaz, String rutaJson);\n"
     "    public static native void imprimir(String texto);\n"
     "    public static native int reproducirSonido(String clip, float volumen, boolean bucle);\n"
     "    public static native void detenerSonido(int handle);\n"
@@ -992,6 +998,54 @@ jobjectArray nativoListarPrefabs(JNIEnv* env, jclass) {
     return arr;
 }
 
+// --- Interfaces web (HUD): el handle es opaco(la direccion del
+// InterfaceComponent del objeto), viaja como long igual que los objetos.
+jlong nativoInterfazDeObjeto(JNIEnv* env, jclass, jstring nombreObjeto) {
+    if (!nombreObjeto) return 0;
+    const std::string texto = leerCadena(env, nombreObjeto);
+    void* interfaz =
+        MotorScript::tablaServicios()->interfazDeObjeto(texto.c_str());
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(interfaz));
+}
+jboolean nativoInterfazActiva(JNIEnv*, jclass, jlong interfaz) {
+    return MotorScript::tablaServicios()->interfazActiva(comoObjeto(interfaz))
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+void nativoInterfazEstablecerActiva(JNIEnv*, jclass, jlong interfaz,
+                                    jboolean activa) {
+    MotorScript::tablaServicios()->interfazEstablecerActiva(
+        comoObjeto(interfaz), activa == JNI_TRUE);
+}
+jboolean nativoInterfazEstablecerEstado(JNIEnv* env, jclass, jlong interfaz,
+                                        jstring jsonEstado) {
+    if (!jsonEstado) return JNI_FALSE;
+    const std::string texto = leerCadena(env, jsonEstado);
+    return MotorScript::tablaServicios()->interfazEstablecerEstado(
+               comoObjeto(interfaz), texto.c_str())
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+jboolean nativoInterfazEstablecerValor(JNIEnv* env, jclass, jlong interfaz,
+                                       jstring clave, jstring valorJson) {
+    if (!clave || !valorJson) return JNI_FALSE;
+    const std::string k = leerCadena(env, clave);
+    const std::string v = leerCadena(env, valorJson);
+    return MotorScript::tablaServicios()->interfazEstablecerValor(
+               comoObjeto(interfaz), k.c_str(), v.c_str())
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+jstring nativoInterfazValor(JNIEnv* env, jclass, jlong interfaz,
+                            jstring rutaJson) {
+    if (!rutaJson) return nullptr;
+    const std::string r = leerCadena(env, rutaJson);
+    const char* valor = MotorScript::tablaServicios()->interfazValor(
+        comoObjeto(interfaz), r.c_str());
+    if (!valor) return nullptr;
+    return env->NewStringUTF(nuevoNombreUTF8(valor).c_str());
+}
+
 bool registrarNativos(const std::string& clasesDir, std::string& error) {
     JNIEnv* env = entorno();
     jclass nativo = env->FindClass("Nativo");
@@ -1126,6 +1180,23 @@ bool registrarNativos(const std::string& clasesDir, std::string& error) {
         {const_cast<char*>("listarPrefabs"),
          const_cast<char*>("()[Ljava/lang/String;"),
          reinterpret_cast<void*>(&nativoListarPrefabs)},
+        {const_cast<char*>("interfazDeObjeto"),
+         const_cast<char*>("(Ljava/lang/String;)J"),
+         reinterpret_cast<void*>(&nativoInterfazDeObjeto)},
+        {const_cast<char*>("interfazActiva"), const_cast<char*>("(J)Z"),
+         reinterpret_cast<void*>(&nativoInterfazActiva)},
+        {const_cast<char*>("interfazEstablecerActiva"),
+         const_cast<char*>("(JZ)V"),
+         reinterpret_cast<void*>(&nativoInterfazEstablecerActiva)},
+        {const_cast<char*>("interfazEstablecerEstado"),
+         const_cast<char*>("(JLjava/lang/String;)Z"),
+         reinterpret_cast<void*>(&nativoInterfazEstablecerEstado)},
+        {const_cast<char*>("interfazEstablecerValor"),
+         const_cast<char*>("(JLjava/lang/String;Ljava/lang/String;)Z"),
+         reinterpret_cast<void*>(&nativoInterfazEstablecerValor)},
+        {const_cast<char*>("interfazValor"),
+         const_cast<char*>("(JLjava/lang/String;)Ljava/lang/String;"),
+         reinterpret_cast<void*>(&nativoInterfazValor)},
     };
     if (env->RegisterNatives(nativo, metodos,
                              sizeof(metodos) / sizeof(metodos[0])) != JNI_OK) {

@@ -384,11 +384,13 @@ Handle OpenGL3Backend::createTexture2D(const Image2D& image) {
     if (conMipmaps) pfnGenerateMipmap(GL_TEXTURE_2D);
 
     glBindTexture(GL_TEXTURE_2D, 0);
+    tamanosTextura2D_[static_cast<Handle>(texture)] = {image.width, image.height};
     return static_cast<Handle>(texture);
 }
 
 void OpenGL3Backend::destroyTexture2D(Handle texture) {
     if (texture == kInvalidHandle) return;
+    tamanosTextura2D_.erase(texture);
     GLuint id = static_cast<GLuint>(texture);
     glDeleteTextures(1, &id);
 }
@@ -397,6 +399,34 @@ void OpenGL3Backend::bindTexture2D(Handle texture, int unit) {
     if (texture == kInvalidHandle || !GLFuncs::pfnActiveTexture) return;
     GLFuncs::pfnActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + unit));
     glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+}
+
+void OpenGL3Backend::updateTexture2D(Handle texture, const Image2D& image) {
+    if (texture == kInvalidHandle || !image.pixels || image.width <= 0 ||
+        image.height <= 0)
+        return;
+
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    // Mismo tamano: se reescribe la region completa con glTexSubImage2D, que no
+    // reasigna el almacenamiento (el caso por frame de una vista offscreen). Si
+    // el tamano cambio (p. ej. resize de la ventana), se reasigna con
+    // glTexImage2D y se actualiza el registro.
+    auto it = tamanosTextura2D_.find(texture);
+    const bool mismoTamano =
+        it != tamanosTextura2D_.end() && it->second.first == image.width &&
+        it->second.second == image.height;
+    if (mismoTamano) {
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, image.width, image.height,
+                        GL_RGBA, GL_UNSIGNED_BYTE, image.pixels);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image.width, image.height, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, image.pixels);
+        tamanosTextura2D_[texture] = {image.width, image.height};
+    }
+
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 // --- Textura Cubemap ---------------------------------------------------------

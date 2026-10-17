@@ -54,12 +54,12 @@
 #include "../Objetos/PrefabLibrary.h"
 #include "../Audio/AudioEngine.h"
 #include "../Audio/MiniAudioBackend.h"
-#include "../GUI/CreadorUI/CreadorDeInterfaces.h"
-#include "../GUI/CreadorUI/CanvasInterface.h"
 #include "../Objetos/Componentes/AudioSource.h"
 #include "../Objetos/Componentes/InterfaceComponent.h"
 #include "../Configuracion/EditorConfig.h"
 #include "GizmoController.h"
+#include "InterfacesJuego.h"
+#include "../WebUI/WebUIRuntime.h"
 #include <cmath>
 #include <imgui.h>
 #include <iostream>
@@ -131,7 +131,11 @@ GameScene::GameScene(GUIManager* manager)
 
 GameScene::~GameScene() {
     ReflejoScripts::fijarResolverObjetos(nullptr);
+    ReflejoScripts::fijarResolverComponentes({});
     eliminarSnapshotSimulacion();
+    // Descarga las vistas web vivas antes de que muera la escena (con un backend
+    // real libera sus recursos; con el nulo es no-op).
+    vistasWebUI_.vaciar();
     // Libera las geometrias cacheadas del SceneRenderer (meshes SUV + grilla)
     // si se llegaron a compilar. En el flujo normal main() crea GameScene con
     // new y no la destruye antes de glfwTerminate, asi que esto es higiene
@@ -144,15 +148,9 @@ GameScene::~GameScene() {
 void GameScene::configurarProyecto(const std::string& nombreProyecto) {
     EditorConfig::asegurarEstructuraProyecto(nombreProyecto);
     // Re-escanea Sonidos/ del proyecto: limpia el registro y lo repuebla por
-    // nombre (los widgets de AudioSource/interfaces hablan por nombre, no ruta).
+    // nombre (los widgets de AudioSource hablan por nombre, no ruta).
     clipsAudio.configurarCarpeta(EditorConfig::directorioSonidos(nombreProyecto),
                                  audioEngine.get());
-    // El creador apunta a Memory/Interfaces del nuevo proyecto.
-    if (managerGUI) {
-        CreadorDeInterfaces* creador = managerGUI->getCreadorInterfacesGUI();
-        if (creador) creador->configurarProyecto(
-            EditorConfig::directorioInterfaces(nombreProyecto));
-    }
 }
 
 AudioEngine* GameScene::getAudioEngine() const noexcept {
@@ -190,18 +188,47 @@ ListaDE<GameObject*>* GameScene::getGameObjectsScene() {
 }
 
 void GameScene::configurarResolverObjetosScripts() {
-    ReflejoScripts::fijarResolverObjetos(
-        [this](const std::string& nombre) -> GameObject* {
+    auto buscarObjeto = [this](const std::string& nombre) -> GameObject* {
+        auto* objetos = getGameObjectsScene();
+        if (!objetos || objetos->isEmpty()) return nullptr;
+        Position<GameObject*>* pos = objetos->first();
+        while (pos && pos->getElement()) {
+            if (nombre == pos->getElement()->inputName) return pos->getElement();
+            pos = (pos != objetos->last()) ? objetos->next(pos) : nullptr;
+        }
+        return nullptr;
+    };
+
+    ReflejoScripts::fijarResolverObjetos(buscarObjeto);
+
+    // Referencias a componentes (TagTipo::Componente): un campo reflejado puede
+    // apuntar al InterfaceComponent de otro objeto. El tipo se especifica por
+    // nombre; hoy solo "InterfaceComponent".
+    ReflejoScripts::fijarResolverComponentes(ReflejoScripts::ResolverComponentes{
+        [buscarObjeto](const std::string& nombre,
+                       const std::string& tipo) -> void* {
+            if (tipo != "InterfaceComponent") return nullptr;
+            GameObject* objeto = buscarObjeto(nombre);
+            return objeto
+                       ? static_cast<void*>(
+                             objeto->getComponent<InterfaceComponent>())
+                       : nullptr;
+        },
+        [this](const void* componente, const std::string& tipo) -> std::string {
+            if (tipo != "InterfaceComponent" || !componente) return std::string();
+            const auto* objetivo =
+                static_cast<const InterfaceComponent*>(componente);
             auto* objetos = getGameObjectsScene();
-            if (!objetos || objetos->isEmpty()) return nullptr;
+            if (!objetos || objetos->isEmpty()) return std::string();
             Position<GameObject*>* pos = objetos->first();
             while (pos && pos->getElement()) {
-                if (nombre == pos->getElement()->inputName)
-                    return pos->getElement();
+                GameObject* o = pos->getElement();
+                if (o && o->getComponent<InterfaceComponent>() == objetivo)
+                    return o->inputName;
                 pos = (pos != objetos->last()) ? objetos->next(pos) : nullptr;
             }
-            return nullptr;
-        });
+            return std::string();
+        }});
 }
 
 void GameScene::configurarResolverObjetosEditor() {
@@ -430,6 +457,10 @@ void GameScene::limpiarRuntimeSimulacion() {
     sincronizarAudioPlay(false);
     MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
     inputScripts.reset();
+    // Limpia el estado JSON de las interfaces y descarga sus vistas para que
+    // una nueva partida no arrastre datos de la anterior.
+    estadoInterfaces_.vaciar();
+    vistasWebUI_.vaciar();
 }
 
 bool GameScene::isSimulacionPausada() const noexcept { return simulacionPausada; }
@@ -710,62 +741,147 @@ void GameScene::GUI() {
     }
     pintarViewportsGUI();
     pintarVentanaCamaras();
+    pintarVistaInterfaz();
     if (managerGUI) managerGUI->getStatusBarGUI()->printGUI();
     ImGui::EndDisabled();
     menuBarGUI->printGUI();
     if (TerminalInterface* terminal = managerGUI->getTerminalGUI())
         terminal->printGUI();
-    // Sistema de audio + creador de interfaces: el catalogo de clips se
-    // refresca por frame (tolerante y barato), el canvas refleja la interfaz
-    // activa y cambia su presentacion segun el modo play.
-    CreadorDeInterfaces* creador = nullptr;
-    CanvasInterface* canvas = nullptr;
-    if (managerGUI) {
-        creador = managerGUI->getCreadorInterfacesGUI();
-        canvas = managerGUI->getCanvasGUI();
-        ImGui::BeginDisabled(modoJuego);
-        if (creador) {
-            creador->setClipNames(audioEngine->nombresClips());
-            creador->printGUI();
-        }
-        ImGui::EndDisabled();
-    }
+    // El overlay de las interfaces de juego (HUD) se dibuja aparte en
+    // pintarInterfacesJuego(), porque tambien corre en el juego exportado,
+    // donde no existe la GUI del editor.
     ImGui::EndDisabled();
     ImGui::PopStyleVar();
+}
 
-    if (canvas) {
-        canvas->setAudioEngine(audioEngine.get());
-        canvas->setModoPlay(start);
-        UserInterfaceCustom* uiParaCanvas = nullptr;
-        if (start && creador) {
-            // En simulacion: buscar objeto con InterfaceComponent y activar
-            // su interfaz a pantalla completa (HUD del juego).
-            auto* objs = getGameObjectsScene();
-            if (objs && !objs->isEmpty()) {
-                Position<GameObject*>* pos = objs->first();
-                while (pos && pos->getElement()) {
-                    if (auto* ic =
-                            pos->getElement()->getComponent<InterfaceComponent>()) {
-                        const std::string& nombre = ic->getInterfaz();
-                        if (!nombre.empty())
-                            uiParaCanvas = creador->activarInterfaz(nombre);
-                        break;
-                    }
-                    pos = (pos != objs->last()) ? objs->next(pos) : nullptr;
-                }
-            }
-        } else if (creador) {
-            // En editor: usar la interfaz activa del creador (prueba manual).
-            uiParaCanvas = creador->getInterfazActiva();
-        }
-        canvas->setUI(uiParaCanvas);
-        ImGui::PushStyleVar(
-            ImGuiStyleVar_Alpha, (start || menuActivo) ? 1.0f : 0.0f);
-        ImGui::BeginDisabled(!start && !menuActivo);
-        canvas->printGUI();
-        ImGui::EndDisabled();
-        ImGui::PopStyleVar();
+void GameScene::pintarInterfacesJuego() {
+    // Recoleccion de TODAS las interfaces activas de la escena, ordenadas por z,
+    // tambien en el juego exportado (sin GUI del editor): una escena con varias
+    // no debe ocultar las demas.
+    std::vector<InterfaceComponent*> interfaces =
+        InterfacesJuego::recolectarDeEscena(getGameObjectsScene());
+
+    const ImGuiIO& io = ImGui::GetIO();
+    const int ancho = static_cast<int>(io.DisplaySize.x);
+    const int alto = static_cast<int>(io.DisplaySize.y);
+
+    // Ciclo de vida de las vistas: carga las nuevas, ajusta el area al
+    // contenedor, avanza (actualizar + render) las existentes y descarga las que
+    // ya no estan. Lo hace el runtime web; con el backend nulo no hay motor web
+    // y no se dibuja nada, pero el ciclo corre entero.
+    vistasWebUI_.sincronizar(interfaces, ancho, alto, deltaTime,
+                             &estadoInterfaces_);
+
+    // Composicion del frame: cada vista que ya entrega textura se dibuja sobre
+    // la escena con su handle opaco. La colocacion es provisional (centrada en
+    // el viewport + desplazamiento); el sistema completo de ancla/tamano/z lo
+    // resuelve el lienzo de juego.
+    ImDrawList* dibujo = ImGui::GetForegroundDrawList();
+    for (InterfaceComponent* interfaz : interfaces) {
+        const VistaWebUI* vista = vistasWebUI_.buscar(interfaz);
+        if (!vista || !vista->handleImGui || vista->ancho <= 0 ||
+            vista->alto <= 0)
+            continue;
+        const glm::vec2 desplazamiento = interfaz->getDesplazamiento();
+        const float x =
+            (io.DisplaySize.x - static_cast<float>(vista->ancho)) * 0.5f +
+            desplazamiento.x;
+        const float y = (io.DisplaySize.y - static_cast<float>(vista->alto)) * 0.5f
+                        + desplazamiento.y;
+        dibujo->AddImage(vista->handleImGui, ImVec2(x, y),
+                         ImVec2(x + vista->ancho, y + vista->alto));
     }
+}
+
+void GameScene::pintarVistaInterfaz() {
+    GameObject* seleccionado =
+        editorController ? editorController->getSelectedObject() : nullptr;
+    InterfaceComponent* interfaz =
+        seleccionado ? seleccionado->getComponent<InterfaceComponent>() : nullptr;
+    if (!seleccionado || !interfaz || interfaz->getRutaHtml().empty()) return;
+
+    // Sincronizar la vista del objeto seleccionado para el preview del editor,
+    // de modo que la textura web este disponible en la ventana dockable.
+    const ImGuiIO& io = ImGui::GetIO();
+    std::vector<InterfaceComponent*> uno{interfaz};
+    vistasWebUI_.sincronizar(uno,
+                             static_cast<int>(io.DisplaySize.x),
+                             static_cast<int>(io.DisplaySize.y),
+                             deltaTime,
+                             nullptr);
+
+    if (!ImGui::Begin(WindowNames::VistaInterfaz)) {
+        ImGui::End();
+        return;
+    }
+
+    const VistaWebUI* vistaSoloLectura = vistasWebUI_.buscar(interfaz);
+    if (!vistaSoloLectura || !vistaSoloLectura->cargada) {
+        ImGui::Text("Cargando %s ...", interfaz->getRutaHtml().c_str());
+        ImGui::End();
+        return;
+    }
+    if (!vistaSoloLectura->error.empty()) {
+        ImGui::Text("Error: %s", vistaSoloLectura->error.c_str());
+        ImGui::End();
+        return;
+    }
+    if (!vistaSoloLectura->handleImGui || vistaSoloLectura->ancho <= 0 ||
+        vistaSoloLectura->alto <= 0) {
+        ImGui::Text("Esperando textura del motor web (%s)...",
+                    interfaz->getRutaHtml().c_str());
+        ImGui::End();
+        return;
+    }
+    const int anchoVista = vistaSoloLectura->ancho;
+    const int altoVista = vistaSoloLectura->alto;
+    void* texturaImGui = vistaSoloLectura->handleImGui;
+
+    const float anchoDisponible = ImGui::GetContentRegionAvail().x;
+    const float escala =
+        anchoDisponible > 0 ? anchoDisponible / static_cast<float>(anchoVista)
+                            : 1.0f;
+    const ImVec2 tamano(anchoDisponible > 0 ? anchoDisponible
+                                            : static_cast<float>(anchoVista),
+                        static_cast<float>(altoVista) * escala);
+    const ImVec2 origen = ImGui::GetCursorScreenPos();
+    ImGui::Image(static_cast<ImTextureID>(
+                     reinterpret_cast<std::intptr_t>(texturaImGui)),
+                 tamano);
+
+    // Input local: el clic/rueda sobre la preview se reenvia a la vista en sus
+    // coordenadas (origen arriba-izquierda). El foco sigue al raton: entrar en
+    // la imagen activa la vista, salir la desactiva.
+    VistaWebUI* vista = vistasWebUI_.buscar(interfaz);
+    if (!vista) {
+        ImGui::End();
+        return;
+    }
+    if (ImGui::IsItemHovered()) {
+        const ImVec2 raton = ImGui::GetIO().MousePos;
+        const int lx = static_cast<int>((raton.x - origen.x) / escala);
+        const int ly = static_cast<int>((raton.y - origen.y) / escala);
+        WebUIRuntime::foco(*vista, true);
+        WebUIRuntime::ratonMover(*vista, lx, ly);
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            WebUIRuntime::ratonBoton(*vista, 0, true);
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+            WebUIRuntime::ratonBoton(*vista, 0, false);
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+            WebUIRuntime::ratonBoton(*vista, 1, true);
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+            WebUIRuntime::ratonBoton(*vista, 1, false);
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
+            WebUIRuntime::ratonBoton(*vista, 2, true);
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Middle))
+            WebUIRuntime::ratonBoton(*vista, 2, false);
+        const float rueda = ImGui::GetIO().MouseWheel;
+        if (rueda != 0.0f) WebUIRuntime::ratonRueda(*vista, rueda);
+    } else if (ImGui::IsItemDeactivated()) {
+        WebUIRuntime::foco(*vista, false);
+    }
+
+    ImGui::End();
 }
 
 void GameScene::pintarViewportsGUI() {
@@ -991,7 +1107,8 @@ void GameScene::update(float value) {
         MotorScript::inyectarServiciosScript(audioEngine.get(),
                                               sceneRegistry.get(),
                                               &inputScripts, phisics.get(),
-                                              editorController.get());
+                                              editorController.get(),
+                                              &estadoInterfaces_);
 
         // Todos los scripts que necesitan (re)compilarse entran a la cola: su
         // progreso se ve en la barra "Estado" antes de bloquear con g++/javac.
@@ -1323,6 +1440,13 @@ void GameScene::gameScene() {
     }
 
     GUI();
+    // El overlay HUD de las interfaces de juego solo se dibuja en el juego
+    // exportado (sin GUI del editor). En el editor, cada interfaz se previsualiza
+    // unicamente en la ventana dockable "Vista de interfaz" (pintarVistaInterfaz)
+    // para no tapar la GUI del editor con un overlay a pantalla completa.
+    if (!managerGUI) {
+        pintarInterfacesJuego();
+    }
 
     if (!CameraFrameSafety::validarCamara(sceneRegistry.get(),
                                           activeCameraObject, camara)) {

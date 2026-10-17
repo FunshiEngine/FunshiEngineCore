@@ -109,6 +109,7 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 | **R14 — Un valor horneado es una pista, no una verdad** | Lo que CMake hornea (rutas de compilador, de cabeceras, de toolchain) es de la máquina que compiló: comprobar que existe antes de usarlo, dejar un override por entorno que gane, buscar la herramienta en la máquina y degradar a un nombre que resuelva el PATH | `BackendCpp::compilador()`, `vcvars64EnRaices()` (ver §12.4) |
 | **R15 — El separador nativo manda al comparar rutas** | Quien arma una ruta con `std::filesystem` (o con `PATH_SEP`) produce el separador de su plataforma: en Windows, `base / "logs"` es `\logs`, no `/logs`. Un test que compare contra un literal con `/` solo pasa en Linux; comparar contra `(fs::path(base) / ...).string()` o rehacer el cálculo con la misma herramienta que el código bajo prueba | `tests/EditorConfigTests.cpp` (bloque `RutasLog::candidatas` y `relativizarRuta`) |
 | **R16 — La resolución del `mtime` depende del toolchain, no del FS** | NTFS registra el mtime con 100ns, pero la lectura de `std::filesystem::last_write_time` en el CRT de MinGW viene de `stat` (1 segundo) y su setter no aplica sobre directorios: una creación dentro del mismo segundo que la marca guardada no es observable ahi, mientras que con MSVC (FILETIME) si lo es. Quien compare mtimes para decidir (polling, invalidación de cache, hot reload) no debe depender de subsegundos, y un test que ejercite esa comparación debe hacer el cambio visible en ambas granularidades o constatar la limitación | `FileSystemWatcher` (fallback de polling), `tests/FileManagerTests.cpp` (bloque polling) |
+| **R17 — Tu binario también es el subproceso** | Un motor multiproceso (CEF) relanza el **mismo ejecutable** con `--type=...`: `CefExecuteProcess` debe correr al comienzo de `main`, antes de log/ventana/GL; devuelve -1 cuando el proceso no es subproceso y el motor sigue. Si no se corta ahí, el subproceso arranca la inicialización completa del motor en paralelo al proceso principal | `WebUIRuntime::ejecutarSubproceso` en `main.cpp` y `main_juego.cpp` (ver §13.4) |
 
 ---
 
@@ -776,7 +777,85 @@ permisos.
 
 ---
 
-## 13. Historial de Cambios
+## 13. Noveno concepto: **El motor web multiproceso relanza tu binario**
+
+### 13.1 Patrón
+
+CEF es multiproceso por diseño: el proceso principal lanza el **mismo
+ejecutable** (o `cef_subprocess.exe` en Windows si existe) con
+`--type=renderer|gpu-process|utility|zygote` para cada rol. El punto de
+entrada debe ejecutar `CefExecuteProcess` **lo primero en `main`** y cortar el
+proceso si ese rol no es el del motor: solo el proceso principal continúa con
+ventana, log, GL e inicialización de CEF (`CefInitialize`).
+
+### 13.2 Síntomas
+
+- El proceso "principal" arranca más de una ventana o una sola con el log
+  duplicado: el subproceso ejecutó la inicialización completa del motor.
+- `ps` muestra procesos `--type=...` que viven más que la ventana o mueren con
+  error al cerrar (apagado corrido dos veces o en el proceso equivocado).
+- Sin `CefInitialize` con `external_message_pump`, los callbacks de CEF no se
+  bombean y las vistas quedan sin pintar aunque `CefInitialize` haya devuelto
+  cierto.
+
+### 13.3 Causa
+
+El contrato de CEF exige que la bifurcación de rol ocurra **antes** de
+cualquier inicialización del motor (ver documentación CEF: `CefExecuteProcess`
+"should be called first in main"). Devuelve el código de salida del rol si el
+proceso es subproceso, o -1 si debe seguir. Poner la llamada después de abrir
+ventana/log/GL hace que el rol de subproceso arranque todo el motor a la vez
+que el proceso principal.
+
+### 13.4 Fix canónico
+
+```cpp
+// Al comienzo de main, antes de registrar señales/log/ventana/GL:
+const int codigo = WebUIRuntime::ejecutarSubproceso(argc, argv);
+if (codigo >= 0) return codigo;   // rol de subproceso: no se arranca el motor
+// -1: proceso principal, sigue el arranque normal.
+```
+
+`WebUIRuntime::ejecutarSubproceso` delega en el backend activo
+(`IWebUIBackend::ejecutarSubproceso`; el nulo devuelve -1). La inicialización
+va **después** de crear el contexto GL (`WebUIRuntime::inicializar`), el
+bombeo una vez por frame (`WebUIRuntime::bombear`, `CefDoMessageLoopWork` con
+`external_message_pump`) y el apagado (`WebUIRuntime::apagar` →
+`CefShutdown`) después de descargar todas las vistas y antes de romper
+ImGui/GL. Los mismos cuatro puntos van en `main.cpp` (editor) y
+`main_juego.cpp` (juego exportado), bajo `FUNSHI_CEF`.
+
+### 13.5 Checklist de mitigación
+
+- [ ] `ejecutarSubproceso` es la **primera** llamada del punto de entrada, sin
+      log ni ventana por delante.
+- [ ] El proceso que no es subproceso recibe -1 y el arranque sigue igual
+      (sin CEF compilado, el backend nulo devuelve -1 siempre).
+- [ ] `inicializar` se llama una vez, con el contexto GL creado; si falla, el
+      runtime cae al backend nulo y el motor sigue (nunca aborta).
+- [ ] `bombear` por frame en el hilo principal; `apagar` tras descargar vistas
+      y antes de destruir ImGui/GL.
+- [ ] El juego exportado repite los mismos cuatro puntos: con CEF compilado,
+      su binario **también** es el subproceso.
+- [ ] El runtime de CEF (`.so`/`.dll` + `resources.pak` + `icudtl.dat` +
+      `locales/`) queda junto al ejecutable; si falta, `inicializar` devuelve
+      false y la GUI muestra el motivo en la vista, sin romper el arranque.
+
+### 13.6 Registro de Instancias
+
+| # | Ubicación | Operación | Herramienta | Fix Aplicado | Commit |
+|---|-----------|-----------|-------------|--------------|--------|
+| 1 | `main.cpp::EjecutarMotor`, `main_juego.cpp::EjecutarJuego` | Arranque del editor y del juego exportado con backend CEF | CEF 154 multiproceso | Los cuatro puntos de §13.4 bajo `FUNSHI_CEF`, con fallback al backend nulo | `feat(webui): backend CEF off-screen, recarga en caliente y preview de interfaz` |
+
+Evidencia de la sonda previa (`FunshiEngineGL/sondas/cef_probe/`, local): con
+`CefExecuteProcess` al inicio de `main`, los roles `--type=gpu-process`,
+`--type=renderer`, `--type=utility` y `--type=zygote` se relanzaron sobre el
+mismo binario y la app principal siguió; `OnPaint` pintó el DOM con CSS/JS
+externos y el bitmap se subió a textura byte a byte.
+
+---
+
+## 14. Historial de Cambios
 
 | Fecha | Autor | Cambio |
 |-------|-------|--------|
@@ -792,7 +871,36 @@ permisos.
 | 2026-10-03 | Gianfranco Ivan Enrique | Añadido el séptimo concepto (Patrón R13, una migración de compatibilidad se lleva las carpetas del motor) con su instancia #1, y registrada la instancia #4 del segundo concepto (Patrón R8, escritura rechazada en el directorio de instalación) a raíz del log de arranque que no se escribía instalado en `Program Files`. |
 | 2026-10-11 | Gianfranco Ivan Enrique | Añadido el Patrón R15 (el separador nativo manda al comparar rutas) a la tabla de patrones: `std::filesystem` arma `\logs` en Windows y los tests comparaban contra literales con `/`, lo que dejaba 6 comprobaciones rojas solo en windows-latest. |
 | 2026-10-11 | Gianfranco Ivan Enrique | Añadido el Patrón R16 (la resolución del `mtime` depende del toolchain, no del FS): la lectura del CRT de MinGW viene de `stat` (1 segundo) y su setter no aplica sobre directorios, de modo que el fallback de polling del `FileSystemWatcher` no observa cambios subsegundo ahi. El ctor del watcher ahora siembra el mtime real de la raíz en vez del epoch (evita un rescaneo vano al arrancar) y el intervalo quedó inyectable para poder probar el contrato. |
+| 2026-10-16 | Gianfranco Ivan Enrique | Añadido el noveno concepto (Patrón R17, el motor web multiproceso relanza tu binario): `CefExecuteProcess` al comienzo de `main` en editor y juego exportado, con init tras GL, bombeo por frame y apagado antes de romper ImGui/GL. |
 
 ---
 
 *Este documento es vivo: cada nuevo bug de esta clase debe registrarse en la tabla de su concepto (§2 para el primero, §6.5 para el segundo, §7.5 para el tercero, §8.5 para el cuarto, §9.5 para el quinto) y, si revela un patrón nuevo, añadirse a §4.*
+## CEF: "Invalid file descriptor to ICU data received" en InitializeICU
+
+- **Síntoma**: al arrancar el motor con `FUNSHI_CEF=ON`, `CefInitialize` aborta en
+  `base::i18n::InitializeICU()` con `Invalid file descriptor to ICU data received`
+  (SIGTRAP). Build y tests pasan; solo falla el arranque real.
+- **Evidencia**: `gdb` backtrace muestra el fallo en `CefInitialize` →
+  `content::ContentMainRunnerImpl::Initialize` → `base::i18n::InitializeICU`.
+  `icudtl.dat` está junto al binario y es válido (magic `90 00 da 27`).
+- **Causa probable**: diferencia entre la sonda funcional (`sondas/cef_probe/`) y
+  el motor en el arranque de CEF (argv[0]/cwd, archivos auxiliares como
+  `v8_context_snapshot.bin`, `chrome_*.pak`, o la configuración de `CefSettings`).
+  La sonda sí arranca; el motor no, pese a tener los mismos recursos.
+- **Causa real (resuelta 2026-10-17)**: CEF busca `icudtl.dat` (y el resto de
+  recursos) **en el directorio de `libcef.so`**, no junto al ejecutable. En el
+  build, `libcef.so` vive en `build-cef/cef/.../Release/` mientras que los
+  recursos se copiaban a `build-cef/` (junto al binario). Por eso
+  `InitializeICU` recibía un fd inválido.
+- **Fix**: copiar `icudtl.dat` (y `v8_context_snapshot.bin`, `resources.pak`,
+  `chrome_*.pak`, `locales/`) al directorio de `libcef.so`. Después de eso el
+  motor arrancó con `[webui] Backend activo: cef`.
+- **Estado**: resuelto para el build de desarrollo; el POST_BUILD de CMake debe
+  copiar los recursos junto a `libcef.so` (no solo junto al ejecutable) para que
+  el export y CI funcionen. El warning de `resources.pak` (no encontrado en el
+  cwd) es menor y se resuelve copiando también ese archivo.
+- **Checklist**: verificar que todos los archivos de la sonda estén copiados
+  (`v8_context_snapshot.bin`, `chrome_100/200_percent.pak`, `resources.pak`,
+  `icudtl.dat`, `locales/`, `libcef.so`), que `CefExecuteProcess` se llame
+  primero en `main`, y que `argv[0]` apunte al binario real.

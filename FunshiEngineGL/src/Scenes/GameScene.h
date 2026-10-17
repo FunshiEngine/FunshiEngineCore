@@ -32,7 +32,8 @@
 #include "../Configuracion/Apariencia.h"
 #include "../Configuracion/DimensionProyecto.h"
 #include "../Audio/AudioClipsManager.h"
-
+#include "../WebUI/VistasWebUI.h"
+#include "../WebUI/EstadoInterfaces.h"
 class CameraComponent;
 class EditorController;
 class Transform;
@@ -49,8 +50,6 @@ class TextureManager;
 class Script;
 class SceneRenderer;
 class AudioEngine;
-class CanvasInterface;
-class CreadorDeInterfaces;
 class MiniAudioBackend;
 class GizmoController;
 
@@ -135,6 +134,16 @@ private:
     // gameScene() a su propio modulo. Se construye en el cuerpo del ctor (la
     // seleccion la inyecta GUIManager en el cuerpo) y vive toda la escena.
     std::unique_ptr<GizmoController> gizmoController_;
+    // Vistas web vivas de las interfaces de juego activas (una por interfaz):
+    // pintarInterfacesJuego() las carga/avanza/descarga. La GUI las dibuja con
+    // el handle de textura que entrega el runtime web; el backend nulo no
+    // produce textura, asi que no se dibuja nada hasta que exista un backend
+    // real.
+    VistasWebUI vistasWebUI_;
+    // Estado JSON de cada interfaz viva (lo que el motor entrega a la interfaz y
+    // lo que esta devuelve). Los scripts lo manipulan via la tabla de servicios;
+    // pintarInterfacesJuego() lo sincroniza con las vistas.
+    EstadoInterfaces estadoInterfaces_;
     // Dimension del proyecto (2D plano / 3D con profundidad). La fija main y el
     // gestor de proyectos antes de cargar la escena; gobierna la siembra de la
     // grilla, la posicion de la camara inicial y (fase de render) el modo 2D.
@@ -154,6 +163,16 @@ private:
     // Muestra las vistas previas del SceneRenderer (textura FBO por camara con
     // "Vista previa" activo) como ventanas ImGui.
     void pintarViewportsGUI();
+
+    // Dibuja el overlay de las interfaces de juego (HUD) de la escena. Se llama
+    // desde gameScene() para que exista tambien en el juego exportado, donde no
+    // hay GUI del editor.
+    void pintarInterfacesJuego();
+
+    // Ventana dockable con la vista web de la interfaz del objeto seleccionado
+    // (preview del editor). Solo corre con GUI del editor; en el juego
+    // exportado no hay seleccion ni ventana.
+    void pintarVistaInterfaz();
 
     // Cola de compilacion de scripts (play mode). Cada script se agenda y se
     // procesa en DOS fases para que la barra de estado muestre "Compilando X

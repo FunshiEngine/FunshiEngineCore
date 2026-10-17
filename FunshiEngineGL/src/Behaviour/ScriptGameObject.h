@@ -36,7 +36,7 @@ namespace MotorScript {
 // versionar la tabla; no promete compatibilidad binaria entre versiones del
 // motor. Incrementar esta version cuando cambie el contrato/API/runtime: el
 // cache la incorpora y recompila los scripts con el motor actualizado.
-constexpr int versionRuntimeScript = 10;
+constexpr int versionRuntimeScript = 11;
 struct ApiScriptGameObject {
     // --- v1 (original) ---
     const char* (*nombre)(const void* objeto);
@@ -109,6 +109,7 @@ const ApiScriptGameObject* tablaApi();
 class AudioEngine;
 class SceneRegistry;
 class InputScripts;
+class EstadoInterfaces;
 class PhysicsEngine;
 class EditorController;
 
@@ -186,6 +187,31 @@ struct ScriptServices {
     // siguiente: copiarlos en el acto si deben retenerse.
     const char** (*listarPrefabs)();
 
+    // --- v6: interfaces web (HUD) ---
+    // Manipulacion de las interfaces de la escena desde los scripts. El handle
+    // (`interfaz`) es opaco: un puntero al InterfaceComponent del objeto que la
+    // tiene. En C++ se obtiene con un campo REFLECT_COMPONENTE (arrastrando el
+    // componente a la propiedad) o con interfazDeObjeto(); en Java, con
+    // interfazDeObjeto. Toda funcion tolera un handle nulo (no hace nada).
+    // Handle de la interfaz del objeto `nombreObjeto`, o nullptr si no existe
+    // o no tiene InterfaceComponent.
+    void* (*interfazDeObjeto)(const char* nombreObjeto);
+    // Estado de visibilidad de la interfaz.
+    bool (*interfazActiva)(const void* interfaz);
+    void (*interfazEstablecerActiva)(void* interfaz, bool activa);
+    // Reemplaza el arbol de estado que el motor entrega a la interfaz. `json`
+    // debe ser un objeto JSON; devuelve false si el texto no es valido.
+    bool (*interfazEstablecerEstado)(void* interfaz, const char* jsonEstado);
+    // Fija un valor en la ruta indicada (JSON Pointer, p. ej. "/jugador/vida";
+    // se acepta sin la barra inicial). Crea los objetos intermedios que falten.
+    // `valorJson` es un literal JSON de cualquier tipo.
+    bool (*interfazEstablecerValor)(void* interfaz, const char* clave,
+                                    const char* valorJson);
+    // Valor que la interfaz devolvio al motor en la ruta dada, como texto JSON,
+    // o nullptr si no existe. El puntero vale hasta la proxima lectura de la
+    // misma interfaz.
+    const char* (*interfazValor)(void* interfaz, const char* rutaJson);
+
     // Version de la tabla (siempre al final).
     int version;
 };
@@ -201,7 +227,8 @@ const ScriptServices* tablaServicios();
 void inyectarServiciosScript(AudioEngine* audio, SceneRegistry* escena,
                              InputScripts* input,
                              PhysicsEngine* fisica = nullptr,
-                             EditorController* editor = nullptr);
+                             EditorController* editor = nullptr,
+                             EstadoInterfaces* interfaces = nullptr);
 
 // Aplica las peticiones de crear/clonar/destruir/agregar acumuladas por los
 // scripts durante el frame. La llama GameScene al terminar de actualizar los

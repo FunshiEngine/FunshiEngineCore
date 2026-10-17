@@ -50,10 +50,6 @@ GUIManager::GUIManager(GLFWwindow* window)
     menuBarGUI->setIconosGUI(iconosGUI.get());
     statusBarGUI = std::make_unique<StatusBarInterface>(true);
     terminalGUI = std::make_unique<TerminalInterface>(true);
-    // Ventanas del creador de interfaces: arrancan ocultas; se alternan desde
-    // el menu "Ventanas" o al crear una interfaz (se persisten por proyecto).
-    creadorInterfacesGUI = std::make_unique<CreadorDeInterfaces>(false);
-    canvasGUI = std::make_unique<CanvasInterface>(false);
     treeFilesGUI->setIconosGUI(iconosGUI.get());
     contentOfThisFolder->setIconosGUI(iconosGUI.get());
     selecteableGUI->setIconosGUI(iconosGUI.get());
@@ -91,7 +87,6 @@ void GUIManager::bindScene(SceneRegistry* scene, EditorController* editor,
     settingGUI->setAudioEngine(audioMotor);
     settingGUI->setEventBus(events);
     if (dimensionProvider) settingGUI->setDimensionProvider(dimensionProvider);
-    canvasGUI->setAudioEngine(audioMotor);
 }
 MenuGUI* GUIManager::getMenuGUI() { return menuGUI.get(); }
 TreeFilesInterface* GUIManager::getTreeFilesGUI() { return treeFilesGUI.get(); }
@@ -130,7 +125,6 @@ DockSpaceInterface* GUIManager::getDockSpaceGUI() { return dockSpaceGUI.get(); }
 void GUIManager::setAudioEngine(AudioEngine* motor) {
     audioMotor = motor;
     if (settingGUI) settingGUI->setAudioEngine(motor);
-    if (canvasGUI) canvasGUI->setAudioEngine(motor);
 }
 
 StatusBarInterface* GUIManager::getStatusBarGUI() { return statusBarGUI.get(); }
@@ -148,7 +142,7 @@ std::vector<GeneralUserInterface*> GUIManager::ventanasPersistentes() const {
     // fuera. El resto se persiste por su WindowName.
     return {selecteableGUI.get(), menuBarGUI.get(), treeFilesGUI.get(),
             contentOfThisFolder.get(), dockSpaceGUI.get(), statusBarGUI.get(),
-            terminalGUI.get(), creadorInterfacesGUI.get(), canvasGUI.get()};
+            terminalGUI.get()};
 }
 
 std::map<std::string, bool> GUIManager::obtenerEstadosVentanas() const {

@@ -279,7 +279,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   │                                 densidad fija: no hay tamaño/separación)
         │   │   ├── AudioSource/SettingsAudioSource.* ← dropdown de clip (src<proyecto>/Sonidos/),
         │   │   │                                 volumen, loop
-        │   │   ├── Interface/SettingsInterface.* ← dropdown de asset de interfaz (Memory/Interfaces/)
+        │   │   ├── Interface/SettingsInterface.* ← ruta del .html de la interfaz
+        │   │   │                                 (drag & drop) + activa, ancla, tamaño y z
         │   │   ├── Skybox/SettingsSkybox.*       ← visible + las seis caras del cubemap
         │   │   │   └── SelectorArchivoCubemap.h ← modal de elección de cara (header-only):
         │   │   │                                la lógica que decide (extensiones válidas,
@@ -288,8 +289,6 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   │                                las ejercite un target headless sin ImGui
         │   │   ├── RigidBody/SettingsRigidBody.*
         │   │   └── Colliders/ (Esfera, Cubo, Malla, Tilemap) ← sync transform/shape con física
-        │   ├── CreadorUI/                        ← Creador de interfaces (editor de HUD;
-        │   │                                      UserInterfaceCustom, JSON en Memory/Interfaces/)
         │   ├── Export/
         │   │   └── ExportDialog.h/.cpp           ← diálogo de exportación del juego standalone
         │   │                                      (arma `GameExporter::Config` y lo lanza)
@@ -396,9 +395,41 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── AgregarComponenteComando.h/.cpp
         │   ├── QuitarComponenteComando.h/.cpp
         │   └── LimpiarEscenaComando.h/.cpp
+        ├── WebUI/
+        │   ├── VistaWebUI.h             ← una interfaz web ya montada por un backend
+        │   │                               (estado opaco + ruta .html + sello mtime +
+        │   │                               textura/handle + área)
+        │   ├── IWebUIBackend.h          ← contrato del motor web (Strategy): subproceso,
+        │   │                               init/bombeo/apagado globales, cargar,
+        │   │                               redimensionar, actualizar, estado/salida,
+        │   │                               render, input (ratón/tecla/rueda/foco),
+        │   │                               descargar
+        │   ├── BackendNull.h            ← backend sin motor (no-op): corre el ciclo
+        │   │                               completo headless, sin CEF ni GL (tests/CI)
+        │   ├── BackendCef.h             ← backend CEF real (pimpl sin headers CEF,
+        │   │                               el motor en C++17 nunca ve a CEF)
+        │   ├── BackendCef.cpp           ← única unidad con CEF (C++20, target
+        │   │                               funshi_webui_cef): OSR, textura, mapa
+        │   │                               GLFW→VK, sentinela de salida JS
+        │   ├── WebUIRuntime.h/.cpp      ← registro + selección de backend (por config,
+        │   │                               con fallback al nulo) y despacho del ciclo
+        │   │                               global (subproceso/init/pump/apagado) y de
+        │   │                               cada vista
+        │   ├── EstadoInterfaces.h/.cpp  ← estado de runtime por interfaz: dos árboles JSON
+        │   │                               (estado motor→JS y salida JS→motor) por rutas JSON
+        │   │                               Pointer; lógica sin GL/backend (pimpl + nlohmann)
+        │   └── VistasWebUI.h/.cpp       ← vistas vivas de una escena, una por interfaz
+        │                                   activa: carga, recarga por cambio de .html
+        │                                   o por mtime en disco, redimensiona,
+        │                                   entrega el estado y recoge la salida,
+        │                                   y descarga (lógica sin GL)
         └── Scenes/
             ├── GameScene.h/.cpp          ← coordinador del frame: render, GUI, física, gizmo,
             │                                previews y pasada de la grilla
+            ├── InterfacesJuego.h/.cpp    ← recolección de las interfaces de juego (HUD) de la
+            │                                escena: recorre TODOS los objetos y devuelve las
+            │                                InterfaceComponent activas y con ruta, ordenadas por
+            │                                z (lógica pura, sin GL ni GUI, probada headless)
             ├── GizmoController.h/.cpp   ← gizmo ImGuizmo + picking (desde GameScene): estado
             │                                (operación/global/listo), arrastre con
             │                                TransformComando (historial) y congelación de
@@ -698,7 +729,7 @@ solo como orquestador de arranque y bucle.
     vuelca el pendiente sin esperar.
   - El layout `imgui.ini` también se guarda junto al proyecto (no en el CWD).
 - Carpeta de un proyecto: `Proyects/<proyecto>/` con `Memory/` (escena,
-  configuración del proyecto e `imgui.ini`), `Memory/Interfaces/` y la raíz de
+  configuración del proyecto e `imgui.ini`) y la raíz de
   assets `src<proyecto>/` (meshes, texturas, materiales, `Sonidos/`,
   `Scripts/`). Todas esas rutas salen de `ProjectPaths`
   (`directorioSrc`, `directorioSonidos`, `directorioScripts`), incluido el
@@ -732,8 +763,14 @@ solo como orquestador de arranque y bucle.
   de audio de los componentes. `InputScripts` expone los edges del teclado y el
   delta del mouse en pixeles durante el frame actual.
 -   `BehaviourReflection` implementa la reflexión por macros (`REFLECT_INICIO`,
-  `CAMPO`, `ARRAY`, `GRUPO`, `GRUPOS`, `FIN`), la conversión de valores tipados y la
-  serialización binaria autodescriptiva de los campos.
+  `CAMPO`, `ARRAY`, `GRUPO`, `GRUPOS`, `COMPONENTE`, `FIN`), la conversión de
+  valores tipados y la serialización binaria autodescriptiva de los campos.
+  `CAMPO`, `ARRAY`, `GRUPO`, `GRUPOS`, `COMPONENTE`, `FIN`), la conversión de valores
+  tipados y la serialización binaria autodescriptiva de los campos.
+- Una referencia a un componente de otro objeto (`TagTipo::Componente`, macro
+  `REFLECT_COMPONENTE(campo, "Tipo")`) se serializa por el **nombre del objeto
+  dueño**. El motor la resuelve con dos ganchos que inyecta `GameScene`
+  (`fijarResolverComponentes`): nombre+tipo → puntero, y puntero → nombre dueño.
 - La API cubre propiedades fisicas (masa, gravedad por cuerpo, friccion,
   freeze), gravedad global y gestion de objetos (crear/clonar/destruir,
   agregar collider y cuerpo) con cola diferida a fin de frame; `ClonadorObjetos`
@@ -771,7 +808,8 @@ solo como orquestador de arranque y bucle.
   libera el otro, así que un CRT distinto (p. ej. el estático `/MT`) separa los
   heaps y corrompe la memoria.
 - El editor (`SettingsScript`) dibuja los campos reflejados (escalares, arrays,
-  grupos y referencias a `GameObject`) y dispara la recompilación.
+  grupos, referencias a `GameObject` y a componentes como el `InterfaceComponent`,
+  asignables arrastrando desde su inspector) y dispara la recompilación.
 - Qué compilador se invoca lo decide `BackendCpp::compilador()` con el mismo
   criterio que el resto: `FUNSHI_CXX` del entorno si está (manda siempre), el
   valor que hornea CMake **solo si existe en disco** —la ruta horneada es la del
@@ -792,6 +830,54 @@ solo como orquestador de arranque y bucle.
   build de desarrollo lo sobreescribe con la ruta absoluta del checkout). Sin esa
   carpeta el backend avisa antes de invocar al compilador, en vez de dejar que
   falle con un `-I` inexistente.
+
+### Interfaces de juego web
+
+Las interfaces gráficas de los juegos (HUD) se escriben en HTML/CSS/JS y se
+montan sobre un motor web embebido. El subsistema vive en `src/WebUI/` y sigue
+el patrón Strategy + registro de los backends de audio y de scripts:
+
+- El `InterfaceComponent` guarda solo la ruta del `.html` (con su colocación:
+  ancla, desplazamiento, tamaño y `z`); el motor web resuelve los recursos
+  relativos (CSS, JS, imágenes) por sí mismo.
+- `IWebUIBackend` es el contrato del motor web: `ejecutarSubproceso` (rol de
+  subproceso del motor web, antes de todo en `main`), `inicializar` (arranque
+  una vez por proceso, con GL listo), `bombear` (bucle de mensajes por frame),
+  `cargar`, `redimensionar`, `actualizar`, `establecerEstado` (entrega el
+  estado JSON a la página), `leerSalida` (recoge `FunshiUI.salida`), `render`
+  (que devuelve el handle de textura para ImGui), el input neutral (ratón con
+  `BotonRatonWebUI`, rueda, teclado por código GLFW y foco), `descargar` y
+  `apagar`.
+- `WebUIRuntime` es la fachada de despacho: mantiene un registro de backends y
+  selecciona el activo (por configuración, con fallback al nulo ante un nombre
+  desconocido). Expone el ciclo global (`ejecutarSubproceso`, `inicializar`,
+  `bombear`, `apagar`, que `main.cpp` y `main_juego.cpp` invocan) y reenvía el
+  ciclo de cada vista al backend activo. Es la única puerta que usa el resto
+  del motor.
+- `BackendNullWebUI` corre el ciclo completo sin motor web ni GL, para tests
+  headless y CI.
+- `BackendCefWebUI` es el backend real sobre CEF 154 (Chromium): una ventana
+  off-screen (OSR) por vista, bitmap BGRA a textura vía `updateTexture2D`,
+  salida JS por sentinela en `console.log`, teclado por mapa GLFW→VK. Vive en
+  su propia unidad C++20 (`BackendCef.cpp`, pimpl sin headers CEF en el resto)
+  y solo se compila con `-DFUNSHI_CEF=ON` (requiere `-DFUNSHI_WEBUI=ON`); CMake
+  descarga la distribución pineada bajo el build dir y copia el runtime junto
+  al binario. Sin CEF el runtime cae al nulo.
+- `EstadoInterfaces` guarda, por interfaz viva, dos árboles JSON: el **estado**
+  que el motor entrega a la página y la **salida** que la página devuelve. Se
+  manejan por rutas estilo JSON Pointer. Es lógica pura (pimpl + nlohmann), sin
+  GL ni backend, y los scripts la manipulan por la tabla de servicios.
+- `VistasWebUI` gobierna las vistas vivas de una escena (una por interfaz
+  activa): las da de alta, recarga al cambiar la ruta del `.html` o al cambiar
+  el archivo en disco (sello `mtime`, patrón `cambioElFuente` de scripts),
+  redimensiona, entrega el estado pendiente, recoge la salida, avanza y
+  descarta las que dejan de estar activas.
+- `GameScene` recolecta las interfaces activas (`InterfacesJuego`), sincroniza
+  `VistasWebUI` con el tamaño del área de juego y su `EstadoInterfaces`, y
+  dibuja cada vista con su textura vía el *draw list* de ImGui, respetando el
+  orden por `z`. En el editor además pinta la ventana dockable `Vista de
+  interfaz` con la vista de la interfaz seleccionada (preview + input local
+  con foco por hover).
 
 ---
 
@@ -828,13 +914,13 @@ La convención general es un par `.h`/`.cpp` por clase. Las excepciones son:
 al build sin enumerarlos manualmente. Los archivos de ImGui se recopilan por separado
 desde `src/ImGui/` y los de ImGuizmo desde `ImGuizmo/` (fuera de `src/`).
 
-Además del ejecutable, el proyecto define **veintiséis targets de prueba
+Además del ejecutable, el proyecto define **veintinueve targets de prueba
 headless** registrados en CTest (`scripts-java-tests` solo se registra con
-`-DFUNSHI_JAVA=ON`; ocho de ellos viven bajo `BUILD_ENGINE=ON`
+`-DFUNSHI_JAVA=ON`; nueve de ellos viven bajo `BUILD_ENGINE=ON`
 —`comandos-tests`, `escena-serializacion-tests`, `catalogo-componentes-tests`,
-`tilemap-tests`, `prefab-tests`, `manifiesto-assets-tests`,
-`orquestador-estado-tests` y `tema-tests`—, y el resto compila también con
-`BUILD_ENGINE=OFF`):
+`tilemap-tests`, `interfaces-juego-tests`,
+`prefab-tests`, `manifiesto-assets-tests`, `orquestador-estado-tests` y
+`tema-tests`—, y el resto compila también con `BUILD_ENGINE=OFF`):
 
 - `filemanager-tests` (190 en Linux; 181 en Windows con MinGW, 183 con MSVC): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
   contra un proyecto temporal, sin ventanas ni pila gráfica; incluye el arrastre
@@ -890,8 +976,10 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   tema resueltos; y la identidad del cubemap del Skybox (`CacheCubemap`): la
   clave que decide cada cuanto volver a subirlo a GPU cambia solo si cambia una
   ruta o su fecha de modificación. Solo CPU, sin OpenGL.
-- `scripts-tests` (142): reflexión `SerializeField` (escalares, arrays, grupos
-  anidados) y su round-trip binario; el contrato de flags con el que
+- `scripts-tests` (173): reflexión `SerializeField` (escalares, arrays, grupos
+  anidados y referencias a componentes por `REFLECT_COMPONENTE`, con su
+  resolución por nombre del objeto dueño) y su round-trip binario; el contrato
+  de flags con el que
   `BackendCpp` compila los scripts (CRT, `/EHsc`, familia de compilador, los
   ARGV armados sin shell ni redirección); la resolución de la carpeta de
   cabeceras del script (`RutaCabecerasScript`: absoluta del checkout o nombre
@@ -925,10 +1013,20 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   largos).
 - `audio-tests` (16): `AudioEngine`/`AudioClipsManager` con `NullAudioBackend`
   (contrato de la cola de comandos: clips, handles, encolado, detención, volumen).
-- `userinterface-tests` (42): `UserInterfaceCustom` (modelo del Creador de
-  interfaces, `src/GUI/CreadorUI/`): round-trip JSON de los 5 tipos de widget,
-  guardar/cargar y tolerancia a JSON parcial; y `BarraProgresoTexto` (formato de
-  la barra de la ventana Estado, acotado ante `hecha > total` y `total == 0`).
+- `interface-component-tests` (16): serialización binaria del `InterfaceComponent`
+  (ruta del `.html` + colocación): round-trip del formato nuevo y lectura del
+  formato viejo (solo el nombre) sin consumir bytes de más, que desalinearía el
+  resto del objeto.
+- `barra-progreso-tests` (8): `BarraProgresoTexto` (formato de la barra de la
+  ventana Estado, acotado ante `hecha > total` y `total == 0`).
+- `webui-runtime-tests` (57): `WebUIRuntime`, `VistasWebUI` y `EstadoInterfaces`
+  sobre el backend nulo: selección de backend con fallback al nulo ante un nombre
+  desconocido, ciclo de vida de una vista sin motor web (`cargar`→`actualizar`→
+  `render`→`descargar`), el gestor de vistas de una escena (alta, recarga al
+  cambiar la ruta del `.html` o al cambiar el archivo en disco por `mtime`,
+  redimensionado y descarte de las que dejan de estar activas), el estado por
+  interfaz por rutas JSON Pointer y el intercambio del estado pendiente/olvido
+  en el ciclo de vistas.
 - `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia`): el acento
   llega a todos los roles de ImGui y el modo B/N deja la paleta monocroma.
 - `comandos-tests` (77): undo/redo del editor (7 comandos, cadena de redo
@@ -966,7 +1064,12 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   grilla, flag de solidez por tile), capas y pintado por celda, horneado de la
   malla (una malla por tilemap, un quad por tile), round-trip binario y la shape
   compuesta del `TilemapCollider`.
-- `prefab-tests` (90): sistema de Prefabs: round-trip guardar → instanciar
+- `interfaces-juego-tests` (9): la recolección de interfaces de juego (HUD):
+  `InterfacesJuego::recolectarDeEscena` sobre la lista de objetos de la escena
+  (lista nula o vacía sin resultados, objetos sin `InterfaceComponent` que no
+  aportan, una escena con varias interfaces que las devuelve TODAS ordenadas por
+  z y las interfaces sin ruta o inactivas omitidas sin cortar el recorrido).
+- `prefab-tests` (82): sistema de Prefabs: round-trip guardar → instanciar
   conservando nombre, tag, jerarquía, componentes y `Transform`, más la caché de
   `PrefabLibrary` y la validación de archivos corruptos; la API de scripts
   `listarPrefabs` con storage estable (válido hasta la llamada siguiente).
@@ -980,11 +1083,13 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   su salida por el PTY, y que `detener()` no se cuelga ni pierde la salida
   emitida durante el cierre (SKIP 77 si ConPTY no está disponible).
 
-Las ocho suites del bloque editor (`comandos-tests`, `escena-serializacion-tests`,
-`catalogo-componentes-tests`, `tilemap-tests`, `prefab-tests`,
-`manifiesto-assets-tests`, `orquestador-estado-tests` y `tema-tests`) solo se
-compilan con `BUILD_ENGINE=ON`, porque enlazan `funshi_engine` o sus fuentes
-directamente.
+Las **nueve** suites que dependen del engine (`comandos-tests`,
+`escena-serializacion-tests`, `catalogo-componentes-tests`, `tilemap-tests`,
+`interfaces-juego-tests`, `prefab-tests`, `manifiesto-assets-tests`,
+`orquestador-estado-tests` y `tema-tests`) enlazan `funshi_engine` y solo se
+registran con `BUILD_ENGINE=ON`. El resto compila sus fuentes directamente
+(`interface-component-tests`, `barra-progreso-tests` y `webui-runtime-tests`
+entre ellos) y corre también con `BUILD_ENGINE=OFF`.
 
 La opción `BUILD_ENGINE=OFF` compila solo las pruebas (útil en CI y plataformas
 sin las librerías gráficas), y `ENABLE_ASAN` (ON por defecto en Debug) activa
@@ -1031,6 +1136,7 @@ main.cpp
         ├─ marcadores de luz y cámara (wireframes auxiliares, batch de líneas)
         ├─ ImGuizmo::Manipulate sobre el GizmoTarget activo (objeto o collider)
         ├─ dibujarViewportsPrevios (FBO de cámaras) + paneles ImGui
+        ├─ pintarInterfacesJuego (overlay HUD; también corre sin GUI de editor)
         └─ pickObject con el mouse para seleccionar en el viewport
 ```
 

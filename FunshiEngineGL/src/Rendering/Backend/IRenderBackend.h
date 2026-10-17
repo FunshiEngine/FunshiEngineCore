@@ -105,6 +105,13 @@ public:
     virtual void destroyTexture2D(Handle texture) = 0;
     // Bindeo del sampleo en la unidad indicada (GL_TEXTURE0 + unit).
     virtual void bindTexture2D(Handle texture, int unit) = 0;
+    // Reescribe el contenido de una textura 2D ya creada. Si las dimensiones de
+    // la imagen coinciden con las de la textura, sube por region
+    // (glTexSubImage2D) sin reasignar el almacenamiento; si cambian, el backend
+    // reasigna. Pensado para fuentes que entregan un bitmap nuevo por frame
+    // (p. ej. la vista web offscreen), evitando crear/destruir la textura cada
+    // frame.
+    virtual void updateTexture2D(Handle texture, const Image2D& image) = 0;
 
     // --- Textura Cubemap -----------------------------------------------------
     // 6 imagenes, una por cara (+X, -X, +Y, -Y, +Z, -Z). Todas deben tener

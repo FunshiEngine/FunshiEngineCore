@@ -33,10 +33,7 @@ inline constexpr const char* EditorDockSpace = "EditorDockSpace";
 inline constexpr const char* Status         = "Estado";
 inline constexpr const char* Terminal       = "Terminal";
 inline constexpr const char* CameraList     = "Camaras";
-// Ventanas del sistema de audio + creador de interfaces (CreadorDeInterfaces)
-// y el canvas que las pinta con sonido (CanvasInterface).
-inline constexpr const char* CreadorInterfaces = "Creador de Interfaces";
-inline constexpr const char* CanvasUI        = "Canvas";
+inline constexpr const char* VistaInterfaz  = "Vista de interfaz";
 } // namespace WindowNames
 
 #endif

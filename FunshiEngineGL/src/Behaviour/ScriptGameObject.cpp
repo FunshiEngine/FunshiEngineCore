@@ -44,6 +44,8 @@
 #include "../Fisicas/PhysicsEngine.h"
 #include "../Input/InputScripts.h"
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
+#include "../Objetos/Componentes/InterfaceComponent.h"
+#include "../WebUI/EstadoInterfaces.h"
 
 namespace MotorScript {
 
@@ -269,6 +271,7 @@ SceneRegistry* g_escena = nullptr;
 InputScripts* g_input = nullptr;
 PhysicsEngine* g_fisica = nullptr;
 EditorController* g_editor = nullptr;
+EstadoInterfaces* g_interfaces = nullptr;
 ScriptAudioHandles g_sonidosScript;
 
 int serviciosReproducirSonido(const char* clip, float volumen, bool bucle) {
@@ -538,6 +541,50 @@ const char** serviciosListarPrefabs() {
     return vista.data();
 }
 
+// El handle de interfaz es un puntero opaco al InterfaceComponent del objeto;
+// la tabla de servicios lo trata como void* y aca se reinterpreta.
+InterfaceComponent* componenteInterfaz(const void* interfaz) {
+    return const_cast<InterfaceComponent*>(
+        static_cast<const InterfaceComponent*>(interfaz));
+}
+
+void* serviciosInterfazDeObjeto(const char* nombreObjeto) {
+    if (!nombreObjeto) return nullptr;
+    GameObject* objeto =
+        static_cast<GameObject*>(serviciosObjetoPorNombre(nombreObjeto));
+    return objeto ? objeto->getComponent<InterfaceComponent>() : nullptr;
+}
+
+bool serviciosInterfazActiva(const void* interfaz) {
+    const InterfaceComponent* c =
+        static_cast<const InterfaceComponent*>(interfaz);
+    return c ? c->estaActiva() : false;
+}
+
+void serviciosInterfazEstablecerActiva(void* interfaz, bool activa) {
+    InterfaceComponent* c = componenteInterfaz(interfaz);
+    if (!c) return;
+    c->setActivo(activa);
+}
+
+bool serviciosInterfazEstablecerEstado(void* interfaz, const char* jsonEstado) {
+    if (!g_interfaces || !jsonEstado) return false;
+    return g_interfaces->establecerEstado(componenteInterfaz(interfaz),
+                                          jsonEstado);
+}
+
+bool serviciosInterfazEstablecerValor(void* interfaz, const char* clave,
+                                      const char* valorJson) {
+    if (!g_interfaces || !clave || !valorJson) return false;
+    return g_interfaces->establecerValor(componenteInterfaz(interfaz), clave,
+                                         valorJson);
+}
+
+const char* serviciosInterfazValor(void* interfaz, const char* rutaJson) {
+    if (!g_interfaces || !rutaJson) return nullptr;
+    return g_interfaces->valor(componenteInterfaz(interfaz), rutaJson);
+}
+
 } // namespace
 
 const ScriptServices* tablaServicios() {
@@ -567,7 +614,13 @@ const ScriptServices* tablaServicios() {
         /* .agregarRigidBody  = */ serviciosAgregarRigidBody,
         /* .instanciarPrefab  = */ serviciosInstanciarPrefab,
         /* .listarPrefabs     = */ serviciosListarPrefabs,
-        /* .version           = */ 5,
+        /* .interfazDeObjeto  = */ serviciosInterfazDeObjeto,
+        /* .interfazActiva    = */ serviciosInterfazActiva,
+        /* .interfazEstablecerActiva = */ serviciosInterfazEstablecerActiva,
+        /* .interfazEstablecerEstado = */ serviciosInterfazEstablecerEstado,
+        /* .interfazEstablecerValor  = */ serviciosInterfazEstablecerValor,
+        /* .interfazValor     = */ serviciosInterfazValor,
+        /* .version           = */ 6,
     };
     return &tabla;
 }
@@ -576,7 +629,8 @@ const ScriptServices* tablaServicios() {
 // cablear el contexto real de la escena a la tabla de servicios.
 void inyectarServiciosScript(AudioEngine* audio, SceneRegistry* escena,
                              InputScripts* input, PhysicsEngine* fisica,
-                             EditorController* editor) {
+                             EditorController* editor,
+                             EstadoInterfaces* interfaces) {
     if (!audio && !escena && !input) detenerSonidosScript();
     if (!escena) descartarPeticionesObjetos();
     g_audio = audio;
@@ -584,6 +638,7 @@ void inyectarServiciosScript(AudioEngine* audio, SceneRegistry* escena,
     g_input = input;
     g_fisica = fisica;
     g_editor = editor;
+    g_interfaces = interfaces;
 }
 
 void procesarPeticionesObjetos() {

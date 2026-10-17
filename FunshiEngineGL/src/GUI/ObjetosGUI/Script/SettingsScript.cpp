@@ -64,6 +64,32 @@ bool editarReferenciaObjeto(std::string& nombre) {
 	return modificado;
 }
 
+// Referencia a un COMPONENTE de otro objeto (TagTipo::Componente): el nombre
+// guardado es el del OBJETO dueño del componente. Se asigna arrastrando el
+// componente desde su inspector (p. ej. la interfaz del jugador) al campo.
+bool editarReferenciaComponente(std::string& nombre, const std::string& tipo) {
+	const char* etiqueta = nombre.empty() ? "[Ninguno]" : nombre.c_str();
+	ImGui::Button(etiqueta);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Arrastra el componente %s de un objeto para asignarlo",
+		                  tipo.c_str());
+	bool modificado = false;
+	if (ImGui::BeginDragDropTarget()) {
+		if (const ImGuiPayload* payload =
+		        ImGui::AcceptDragDropPayload("COMPONENTE_INTERFAZ")) {
+			if (tipo == "InterfaceComponent") {
+				const char* dueno = static_cast<const char*>(payload->Data);
+				if (dueno && *dueno) {
+					nombre = dueno;
+					modificado = true;
+				}
+			}
+		}
+		ImGui::EndDragDropTarget();
+	}
+	return modificado;
+}
+
 // Widget para un valor escalar/objeto segun su tag, SIN etiqueta. Devuelve
 // true si el widget modifico `valor` (el arbol se reescribe solo aca).
 bool editarScalar(ReflejoScripts::ValorCampo& valor) {
@@ -478,6 +504,20 @@ void SettingsScript::showDataComponent() {
 				if (ImGui::SmallButton("+ Agregar")) {
 					lista.push_back("");
 					camb = true;
+				}
+				break;
+			}
+			case TagTipo::Componente: {
+				ImGui::TextUnformatted(def.nombre.c_str());
+				ImGui::SameLine();
+				std::string& nombre = valor.como<std::string>();
+				camb = editarReferenciaComponente(nombre, def.tipoComponente);
+				if (!nombre.empty()) {
+					ImGui::SameLine();
+					if (ImGui::SmallButton("x")) {
+						nombre.clear();
+						camb = true;
+					}
 				}
 				break;
 			}

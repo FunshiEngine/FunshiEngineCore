@@ -23,9 +23,9 @@
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/Componentes/InterfaceComponent.h"
 
-// Inspector del InterfaceComponent: nombre del asset de interfaz
-// (Memory/Interfaces/<nombre>.json) que se muestra delante de la camara
-// principal al entrar en modo play.
+// Inspector del InterfaceComponent: ruta del .html de la interfaz (HUD) que se
+// muestra delante de la camara principal al entrar en modo play, mas su
+// colocacion (activo, ancla, desplazamiento, tamano y z).
 class SettingsInterface : public SettingsComponent {
     GameObject* gameObject;
 

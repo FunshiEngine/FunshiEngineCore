@@ -40,6 +40,9 @@
 #include "../Behaviour/ScriptRuntime.h"
 #include "../States/ApplicationStateMachine.h"
 #include "../States/OrquestadorEstadoGUI.h"
+#ifdef FUNSHI_CEF
+#include "../WebUI/WebUIRuntime.h"
+#endif
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -119,22 +122,29 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 // Entry point principal (Linux y fallback Windows)
 int EjecutarJuego(int argc, char* argv[]) {
+#ifdef FUNSHI_CEF
+    // Igual que en el editor: si CEF relanzo este binario como subproceso, se
+    // ejecuta ese rol y no se arranca el juego.
+    {
+        const int codigoSubproceso = WebUIRuntime::ejecutarSubproceso(argc, argv);
+        if (codigoSubproceso >= 0) return codigoSubproceso;
+    }
+#else
     (void)argc; (void)argv; // En exportacion no se usan argumentos CLI
+#endif
 
     // 1. Redirigir salida al log
     std::string rutaLog = redirigirSalidaALog(argc > 0 ? argv[0] : nullptr);
     (void)rutaLog;
 
-    // 2. Inicializar GLFW
-    if (!glfwInit()) {
-        std::cerr << "GLFW init failed\n";
-        return 1;
-    }
+    // 2. Registrar el callback de errores de GLFW antes de crear la ventana.
+    // Ventana::initVentana llama a glfwInit(); no se duplica aqui.
     glfwSetErrorCallback([](int error, const char* desc) {
         std::cerr << "[GLFW] error " << error << ": " << desc << '\n';
     });
 
-    // 3. Crear ventana (Ventana es el wrapper del motor)
+    // 3. Crear ventana (Ventana llama a glfwInit internamente, crea la ventana,
+    // inicializa el contexto 3.3 core y carga las funciones de OpenGL).
     Ventana* auxVentana = new Ventana();
     auxVentana->initVentana();
     GLFWwindow* window = auxVentana->getWindow();
@@ -149,7 +159,10 @@ int EjecutarJuego(int argc, char* argv[]) {
     io.IniFilename = nullptr; // No guardar imgui.ini en juego exportado
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 460 core");
+    // El contexto OpenGL es 3.3 core (ver Ventana::initVentana); el GLSL
+    // version string debe coincidir. "#version 460" provocaba que ImGui no
+    // pudiera compilar sus shaders internos y el frame quedaba en negro.
+    ImGui_ImplOpenGL3_Init("#version 330 core");
 
     // 5. GameScene (nucleo: render, fisica, scripts, input)
     // El constructor que NO requiere GUIManager - solo para runtime
@@ -177,7 +190,13 @@ int EjecutarJuego(int argc, char* argv[]) {
     fs::create_directories(cacheDir, ec);
 
     // 8. Cargar escena desde la estructura simplificada del juego exportado
-    // Las escenas están en scenes/ junto al ejecutable, NO en MotorGrafico/Proyects
+    // Las escenas están en scenes/ junto al ejecutable, NO en MotorGrafico/Proyects.
+    // Las rutas de assets de la escena se guardan RELATIVAS a la raiz del
+    // juego (p. ej. "Assets/Modelos/Cube.obj"): se fija esa raiz ANTES de
+    // cargar, para que se resuelvan contra el directorio del juego y no
+    // contra el cwd desde donde se lanzo (que dejaria las mallas sin
+    // encontrar y la pantalla en negro).
+    EditorConfig::fijarRaizAssets(dirEjecutable);
     const std::string sceneBBDD = dirEjecutableConBarra + "scenes/Scene.db";
     const std::string sceneDir = dirEjecutableConBarra + "scenes/SceneDir";
     
@@ -189,6 +208,11 @@ int EjecutarJuego(int argc, char* argv[]) {
         std::cerr << "[juego] Iniciando con escena vacia (el juego seguira ejecutandose)\n";
         // No cargar escena - GameScene arranca con una escena vacía por defecto
     }
+
+    // configurarProyecto() inicializa el catalogo de clips de audio
+    // (Sonidos/) y las interfaces de la escena (Memory/Interfaces).
+    // Debe llamarse DESPUES de loadScene para que la escena ya exista.
+    scene->configurarProyecto(nombreProyecto);
 
     // 9. Maquina de estados y orquestador
     ApplicationStateMachine appStateMachine;
@@ -208,16 +232,36 @@ int EjecutarJuego(int argc, char* argv[]) {
     // 13. Bucle principal del juego
     Time::start();
 
+#ifdef FUNSHI_CEF
+    // Motor web: mismo ciclo que el editor (init una vez, pump por frame,
+    // apagado al salir). Sin runtime CEF cae al nulo y el juego sigue.
+    if (!WebUIRuntime::inicializar(argc, argv)) {
+        std::cout << "[webui] Sin backend web real en el juego exportado."
+                  << std::endl;
+    }
+#endif
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+#ifdef FUNSHI_CEF
+        WebUIRuntime::bombear();
+#endif
         Time::update();
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // GameScene::gameScene() ejecuta: render + fisica + scripts + input de juego
-        // En modo juego, NO dibuja paneles del editor (isEditorGUIVisible() = false)
+        // El juego exportado siempre corre en modo Playing: setStart(true)
+        // habilita el avance de la fisica y los scripts cada frame. En
+        // main.cpp este valor lo refleja el orquestador de estados; aqui se
+        // fija directamente porque el estado nunca cambia a Editing.
+        scene->setStart(true);
+        scene->setModoJuego(true);
+
+        // update() avanza la fisica, los scripts y las animaciones.
+        // gameScene() dibuja el frame con el estado ya actualizado.
+        scene->update(Time::getDeltaTime());
         scene->gameScene();
 
         ImGui::Render();
@@ -230,6 +274,10 @@ int EjecutarJuego(int argc, char* argv[]) {
     scene->cerrarSimulacionAntesDeGuardar();
     scene->descargarScripts();
     ScriptRuntime::apagarScripts();
+
+#ifdef FUNSHI_CEF
+    WebUIRuntime::apagar();
+#endif
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();

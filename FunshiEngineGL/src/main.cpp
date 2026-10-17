@@ -51,6 +51,9 @@
 #include "../src/Rendering/Backend/IRenderBackend.h"
 #include "../src/Diagnosticos/RegistroDiagnosticos.h"
 #include "../src/ExcepcionesCPP/RuntimeException.h"
+#ifdef FUNSHI_CEF
+#include "../src/WebUI/WebUIRuntime.h"
+#endif
 #include "ImGuizmo.h"
 #include <iostream>
 #include <cstdio>
@@ -235,6 +238,30 @@ int WINAPI WinMain(HINSTANCE /*hInstance*/, HINSTANCE /*hPrevInstance*/,
 
 static int EjecutarMotor(int argc, char* argv[])
 {
+#ifdef FUNSHI_CEF
+    // Rol de subproceso CEF (renderer/gpu/utility/zygote): CEF relanza este
+    // mismo binario con --type=... y CefExecuteProcess ejecuta ese rol. Va
+    // ANTES de todo (log, ventana, GL): el subproceso no arranca el motor.
+    // Devuelve >=0 si este proceso ES un subproceso; -1 si debe seguir.
+    {
+        const int codigoSubproceso = WebUIRuntime::ejecutarSubproceso(argc, argv);
+        if (codigoSubproceso >= 0) return codigoSubproceso;
+    }
+#endif
+    // Motor web de interfaces (CEF): se arranca UNA vez por proceso, ANTES de
+    // cualquier inicializacion del motor (ventana, GL, log). Con
+    // windowless_rendering_enabled no necesita la ventana GLFW para
+    // inicializarse; el contexto GL solo se necesita despues, en render().
+    // Si no puede arrancar, el runtime cae al backend nulo y el motor sigue.
+#ifdef FUNSHI_CEF
+    if (!WebUIRuntime::inicializar(argc, argv)) {
+        std::cout << "[webui] Sin backend web real: las interfaces HTML "
+                     "quedan sin textura (backend nulo)." << std::endl;
+    } else {
+        std::cout << "[webui] Backend activo: " << WebUIRuntime::nombreBackendActivo()
+                  << std::endl;
+    }
+#endif
     std::set_terminate(registrarExcepcionNoCapturada);
     // Parseo simple de --proyecto <nombre> para arrancar directo en editor
     // (skip menu). Usado para ejecutar un juego exportado: FunshiEngineGL
@@ -595,6 +622,12 @@ static int EjecutarMotor(int argc, char* argv[])
         // hasta un frame (~16ms) de latencia a la reaccion del editor.
         glfwPollEvents();
 
+#ifdef FUNSHI_CEF
+        // Bucle de mensajes del motor web (external_message_pump): una vez por
+        // frame, en el hilo principal. Sin CEF es no-op.
+        WebUIRuntime::bombear();
+#endif
+
         Time::limitFPS(FPS);
         deltaTime = Time::getDeltaTime();
 
@@ -782,6 +815,12 @@ static int EjecutarMotor(int argc, char* argv[])
     // internos del JVM (nmethods, oopmaps, metaspace) como fugas al cerrar.
     scene->descargarScripts();
     ScriptRuntime::apagarScripts();
+
+    // Apagado del motor web (CefShutdown): despues de descargar las vistas
+    // (las libera GameScene) y antes de romper ImGui/GL. Sin CEF es no-op.
+#ifdef FUNSHI_CEF
+    WebUIRuntime::apagar();
+#endif
 
     // Shutdown solo con backend vivo: ImGui_ImplOpenGL3_Shutdown() desreferencia
     // el backend data y en Release no hay assert que lo frene.
