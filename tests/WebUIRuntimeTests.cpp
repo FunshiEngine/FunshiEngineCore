@@ -17,20 +17,26 @@
     SPDX-License-Identifier: Apache-2.0
 */
 
-// Pruebas headless del runtime de interfaces web (WebUIRuntime) y del gestor de
-// vistas (VistasWebUI). Corren enteras con el backend nulo (sin CEF ni GL):
+// Pruebas headless del runtime de interfaces web (WebUIRuntime), del gestor de
+// vistas (VistasWebUI) y del estado por interfaz (EstadoInterfaces). Corren
+// enteras con el backend nulo (sin CEF ni GL):
 //   - seleccion del backend por configuracion y fallback (un nombre que no
 //     existe no deja al motor sin backend),
 //   - ciclo de vida completo de una vista sin GPU (cargar/redimensionar/
 //     actualizar/render/input/descargar),
 //   - el gestor crea una vista por interfaz activa, la recarga si cambia el
-//     .html, la redimensiona con el contenedor y la descarga al desaparecer.
+//     .html, la redimensiona con el contenedor y la descarga al desaparecer,
+//   - el estado por interfaz arma el arbol JSON del motor y lee el que la
+//     interfaz devuelve, por rutas estilo JSON Pointer,
+//   - el ciclo de vistas entrega el estado pendiente de cada interfaz y olvida
+//     el de la que se descarga.
 
 #include <iostream>
 #include <string>
 #include <vector>
 
 #include "../FunshiEngineGL/src/Objetos/Componentes/InterfaceComponent.h"
+#include "../FunshiEngineGL/src/WebUI/EstadoInterfaces.h"
 #include "../FunshiEngineGL/src/WebUI/VistaWebUI.h"
 #include "../FunshiEngineGL/src/WebUI/VistasWebUI.h"
 #include "../FunshiEngineGL/src/WebUI/WebUIRuntime.h"
@@ -153,12 +159,116 @@ void gestorDeVistas() {
           "vaciar descarga todas las vistas");
 }
 
+// Estado por interfaz: el motor arma el arbol que recibe la interfaz (estado) y
+// lee el que esta devuelve (salida), por rutas JSON Pointer.
+void estadoDeInterfaces() {
+    InterfaceComponent hud;
+    EstadoInterfaces estado;
+
+    CHECK(estado.estadoPendiente(&hud) == nullptr,
+          "sin cambios no hay estado pendiente");
+
+    // Valor escalar en una ruta anidada: se crean los objetos intermedios.
+    CHECK(estado.establecerValor(&hud, "/jugador/vida", "42"),
+          "establecer un valor escalar por ruta");
+    const std::string* pendiente = estado.estadoPendiente(&hud);
+    CHECK(pendiente != nullptr, "establecer marca el estado pendiente");
+    CHECK(pendiente && pendiente->find("\"jugador\"") != std::string::npos &&
+              pendiente->find("\"vida\":42") != std::string::npos,
+          "el estado pendiente incluye la ruta anidada");
+
+    estado.marcarEnviado(&hud);
+    CHECK(estado.estadoPendiente(&hud) == nullptr,
+          "marcar enviado limpia el pendiente");
+
+    // Clave sin barra inicial: se normaliza a JSON Pointer.
+    CHECK(estado.establecerValor(&hud, "puntaje", "7"),
+          "la clave sin barra inicial tambien se acepta");
+    const std::string* conClave = estado.estadoPendiente(&hud);
+    CHECK(conClave && conClave->find("\"puntaje\":7") != std::string::npos,
+          "la clave normalizada aparece en el estado");
+
+    // Estado completo: reemplaza el arbol anterior.
+    CHECK(estado.establecerEstado(&hud, "{\"nombre\":\"Ana\",\"vidas\":3}"),
+          "establecer un estado completo");
+    const std::string* completo = estado.estadoPendiente(&hud);
+    CHECK(completo &&
+              completo->find("\"nombre\":\"Ana\"") != std::string::npos,
+          "el estado completo reemplaza al anterior");
+
+    // JSON invalido se rechaza sin tocar el estado.
+    CHECK(!estado.establecerEstado(&hud, "{no es json"),
+          "un estado con JSON invalido se rechaza");
+    CHECK(!estado.establecerValor(&hud, "/x", "{no es json"),
+          "un valor con JSON invalido se rechaza");
+
+    // Salida: lo que la interfaz devuelve al motor.
+    CHECK(estado.valor(&hud, "/boton") == nullptr,
+          "sin salida la lectura devuelve nulo");
+    estado.definirSalida(&hud, "{\"boton\":\"jugar\",\"nivel\":2}");
+    const char* boton = estado.valor(&hud, "/boton");
+    CHECK(boton && std::string(boton) == "\"jugar\"",
+          "la salida entrega el valor por ruta");
+    const char* nivel = estado.valor(&hud, "nivel");
+    CHECK(nivel && std::string(nivel) == "2",
+          "la salida tambien normaliza la ruta");
+    CHECK(estado.valor(&hud, "/inexistente") == nullptr,
+          "una ruta inexistente devuelve nulo");
+
+    // Olvidar: al descargar la vista se descarta estado y salida.
+    estado.olvidar(&hud);
+    CHECK(estado.valor(&hud, "/boton") == nullptr,
+          "olvidar descarta la salida");
+    CHECK(estado.estadoPendiente(&hud) == nullptr,
+          "olvidar descarta el pending");
+
+    // Normalizacion de rutas.
+    CHECK(EstadoInterfaces::normalizarRuta("a/b") == std::string("/a/b"),
+          "normalizarRuta agrega la barra inicial");
+    CHECK(EstadoInterfaces::normalizarRuta("/a") == std::string("/a"),
+          "normalizarRuta respeta la barra inicial");
+    CHECK(EstadoInterfaces::normalizarRuta("") == std::string(),
+          "normalizarRuta deja la ruta raiz vacia");
+}
+
+// Integracion del ciclo de vistas con el estado: al sincronizar, el gestor
+// entrega el estado pendiente de cada interfaz (y lo marca como enviado) y, al
+// descargar una vista, descarta el estado de esa interfaz. Con el backend nulo
+// `establecerEstado`/`leerSalida` son no-op, pero la gestion del pendiente y el
+// olvido son observables.
+void sincronizacionConEstado() {
+    InterfaceComponent hud;
+    hud.setRutaHtml("UI/hud.html");
+    EstadoInterfaces estado;
+    VistasWebUI vistas;
+
+    CHECK(estado.establecerValor(&hud, "/vida", "10"),
+          "se prepara un valor de estado");
+    CHECK(estado.estadoPendiente(&hud) != nullptr,
+          "antes de sincronizar hay estado pendiente");
+
+    vistas.sincronizar(std::vector<InterfaceComponent*>{&hud}, 800, 600, 0.016f,
+                       &estado);
+    CHECK(estado.estadoPendiente(&hud) == nullptr,
+          "sincronizar entrega el estado y limpia el pendiente");
+
+    // La interfaz desaparece: el gestor olvida su estado.
+    CHECK(estado.establecerValor(&hud, "/vida", "20"),
+          "se vuelve a marcar estado pendiente");
+    vistas.sincronizar(std::vector<InterfaceComponent*>{}, 800, 600, 0.016f,
+                       &estado);
+    CHECK(estado.estadoPendiente(&hud) == nullptr,
+          "al descargarse la vista se olvida el estado de la interfaz");
+}
+
 } // namespace
 
 int main() {
     seleccionDeBackend();
     cicloDeVidaSinGL();
     gestorDeVistas();
+    estadoDeInterfaces();
+    sincronizacionConEstado();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

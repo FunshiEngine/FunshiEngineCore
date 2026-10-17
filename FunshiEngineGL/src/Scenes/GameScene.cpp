@@ -130,6 +130,7 @@ GameScene::GameScene(GUIManager* manager)
 
 GameScene::~GameScene() {
     ReflejoScripts::fijarResolverObjetos(nullptr);
+    ReflejoScripts::fijarResolverComponentes({});
     eliminarSnapshotSimulacion();
     // Descarga las vistas web vivas antes de que muera la escena (con un backend
     // real libera sus recursos; con el nulo es no-op).
@@ -186,18 +187,47 @@ ListaDE<GameObject*>* GameScene::getGameObjectsScene() {
 }
 
 void GameScene::configurarResolverObjetosScripts() {
-    ReflejoScripts::fijarResolverObjetos(
-        [this](const std::string& nombre) -> GameObject* {
+    auto buscarObjeto = [this](const std::string& nombre) -> GameObject* {
+        auto* objetos = getGameObjectsScene();
+        if (!objetos || objetos->isEmpty()) return nullptr;
+        Position<GameObject*>* pos = objetos->first();
+        while (pos && pos->getElement()) {
+            if (nombre == pos->getElement()->inputName) return pos->getElement();
+            pos = (pos != objetos->last()) ? objetos->next(pos) : nullptr;
+        }
+        return nullptr;
+    };
+
+    ReflejoScripts::fijarResolverObjetos(buscarObjeto);
+
+    // Referencias a componentes (TagTipo::Componente): un campo reflejado puede
+    // apuntar al InterfaceComponent de otro objeto. El tipo se especifica por
+    // nombre; hoy solo "InterfaceComponent".
+    ReflejoScripts::fijarResolverComponentes(ReflejoScripts::ResolverComponentes{
+        [buscarObjeto](const std::string& nombre,
+                       const std::string& tipo) -> void* {
+            if (tipo != "InterfaceComponent") return nullptr;
+            GameObject* objeto = buscarObjeto(nombre);
+            return objeto
+                       ? static_cast<void*>(
+                             objeto->getComponent<InterfaceComponent>())
+                       : nullptr;
+        },
+        [this](const void* componente, const std::string& tipo) -> std::string {
+            if (tipo != "InterfaceComponent" || !componente) return std::string();
+            const auto* objetivo =
+                static_cast<const InterfaceComponent*>(componente);
             auto* objetos = getGameObjectsScene();
-            if (!objetos || objetos->isEmpty()) return nullptr;
+            if (!objetos || objetos->isEmpty()) return std::string();
             Position<GameObject*>* pos = objetos->first();
             while (pos && pos->getElement()) {
-                if (nombre == pos->getElement()->inputName)
-                    return pos->getElement();
+                GameObject* o = pos->getElement();
+                if (o && o->getComponent<InterfaceComponent>() == objetivo)
+                    return o->inputName;
                 pos = (pos != objetos->last()) ? objetos->next(pos) : nullptr;
             }
-            return nullptr;
-        });
+            return std::string();
+        }});
 }
 
 void GameScene::configurarResolverObjetosEditor() {
@@ -426,6 +456,10 @@ void GameScene::limpiarRuntimeSimulacion() {
     sincronizarAudioPlay(false);
     MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
     inputScripts.reset();
+    // Limpia el estado JSON de las interfaces y descarga sus vistas para que
+    // una nueva partida no arrastre datos de la anterior.
+    estadoInterfaces_.vaciar();
+    vistasWebUI_.vaciar();
 }
 
 bool GameScene::isSimulacionPausada() const noexcept { return simulacionPausada; }
@@ -733,7 +767,8 @@ void GameScene::pintarInterfacesJuego() {
     // contenedor, avanza (actualizar + render) las existentes y descarga las que
     // ya no estan. Lo hace el runtime web; con el backend nulo no hay motor web
     // y no se dibuja nada, pero el ciclo corre entero.
-    vistasWebUI_.sincronizar(interfaces, ancho, alto, deltaTime);
+    vistasWebUI_.sincronizar(interfaces, ancho, alto, deltaTime,
+                             &estadoInterfaces_);
 
     // Composicion del frame: cada vista que ya entrega textura se dibuja sobre
     // la escena con su handle opaco. La colocacion es provisional (centrada en
@@ -979,7 +1014,8 @@ void GameScene::update(float value) {
         MotorScript::inyectarServiciosScript(audioEngine.get(),
                                               sceneRegistry.get(),
                                               &inputScripts, phisics.get(),
-                                              editorController.get());
+                                              editorController.get(),
+                                              &estadoInterfaces_);
 
         // Todos los scripts que necesitan (re)compilarse entran a la cola: su
         // progreso se ve en la barra "Estado" antes de bloquear con g++/javac.

@@ -219,7 +219,14 @@ const ScriptServices* tablaServicios() {
             static const char* prefabs[] = { "Enemigo", "Jugador", nullptr };
             return prefabs;
         },
-        5,
+        [](const char*) { return reinterpret_cast<void*>(
+                               static_cast<intptr_t>(0x1234)); },
+        [](const void*) { return true; },
+        [](void*, bool) {},
+        [](void*, const char*) { return true; },
+        [](void*, const char*, const char*) { return true; },
+        [](void*, const char*) { return "3"; },
+        6,
     };
     return &servicios;
 }
@@ -247,6 +254,9 @@ static const char* FUENTE_JAVA =
     "    public float masaLeida, escalaGravLeida, friccionLeida, gravLeidaY;\n"
     "    public boolean masaOk, gravOk, friccionOk, freezeOk;\n"
     "    public boolean crearOk, destruirOk, clonarOk, agregarOk;\n"
+    "    public long hud;\n"
+    "    public boolean hudActiva, hudEstadoOk, hudValorOk;\n"
+    "    public String hudSalida;\n"
     "    @Override public void iniciar(long o) {\n"
     "        vidas = 100;\n"
     "        nombreObjeto = Nativo.nombre(o);\n"
@@ -278,6 +288,12 @@ static const char* FUENTE_JAVA =
     "        friccionLeida = Nativo.friccion(o); friccionOk = Nativo.fijarFriccion(o, 0.1f);\n"
     "        freezeOk = Nativo.fijarFreezePosicion(o, true, false, true) && Nativo.posicionCongelada(o, 0) && !Nativo.posicionCongelada(o, 1) && Nativo.fijarFreezeRotacion(o, false, true, false) && Nativo.rotacionCongelada(o, 1);\n"
     "        Nativo.fijarGravedadGlobal(0, -2, 0); gravLeidaY = Nativo.gravedadGlobalY();\n"
+    "        hud = Nativo.interfazDeObjeto(\"Meta\");\n"
+    "        hudActiva = Nativo.interfazActiva(hud);\n"
+    "        hudEstadoOk = Nativo.interfazEstablecerEstado(hud, \"{\\\"vida\\\":10}\");\n"
+    "        hudValorOk = Nativo.interfazEstablecerValor(hud, \"/x\", \"1\");\n"
+    "        Nativo.interfazEstablecerActiva(hud, false);\n"
+    "        hudSalida = Nativo.interfazValor(hud, \"/boton\");\n"
     "        long nuevo = Nativo.crearObjeto(\"Enemigo\", 0); crearOk = nuevo != 0;\n"
     "        destruirOk = Nativo.destruirObjeto(nuevo);\n"
     "        clonarOk = Nativo.clonarObjeto(o, 0) != 0;\n"
@@ -348,7 +364,7 @@ int main() {
 
     CHECK(comportamiento.valido(), "objeto Java creado");
     CHECK(comportamiento.lenguaje == "java", "lenguaje = java");
-    CHECK(comportamiento.campos.size() == 47,
+    CHECK(comportamiento.campos.size() == 52,
           "campos publicos Java soportados reflejados (con long como objeto)");
 
     // Inyectar SerializeField y verificar por lectura.
@@ -482,7 +498,16 @@ int main() {
               destruirOk->como<bool>() && clonarOk &&
               clonarOk->como<bool>() && agregarOk &&
               agregarOk->como<bool>(),
-          "Java crea, destruye, clona y agrega componentes");
+           "Java crea, destruye, clona y agrega componentes");
+    CHECK(buscar(valores, "hudActiva") &&
+              buscar(valores, "hudActiva")->como<bool>() &&
+              buscar(valores, "hudEstadoOk") &&
+              buscar(valores, "hudEstadoOk")->como<bool>() &&
+              buscar(valores, "hudValorOk") &&
+              buscar(valores, "hudValorOk")->como<bool>() &&
+              buscar(valores, "hudSalida") &&
+              buscar(valores, "hudSalida")->como<std::string>() == "3",
+          "Java manipula interfaces web por nativos (estado, valor y salida)");
 
     ScriptRuntime::llamarContacto(comportamiento, nullptr, nullptr, nullptr,
                                   TipoContacto::Inicio);

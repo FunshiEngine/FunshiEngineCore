@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "../Objetos/Componentes/InterfaceComponent.h"
+#include "EstadoInterfaces.h"
 #include "WebUIRuntime.h"
 
 namespace {
@@ -45,7 +46,7 @@ void medidasDe(const InterfaceComponent* interfaz, int anchoContenedor,
 
 void VistasWebUI::sincronizar(
     const std::vector<InterfaceComponent*>& interfaces, int anchoContenedor,
-    int altoContenedor, float deltaTime) {
+    int altoContenedor, float deltaTime, EstadoInterfaces* estado) {
     std::set<const InterfaceComponent*> vigentes(interfaces.begin(),
                                                  interfaces.end());
 
@@ -74,6 +75,20 @@ void VistasWebUI::sincronizar(
         }
 
         WebUIRuntime::actualizar(it->second, deltaTime);
+
+        // Intercambio de estado con la pagina: entrega el estado pendiente (el
+        // que cambio desde el ultimo frame) y recoge la salida que el JS haya
+        // publicado en `FunshiUI.salida`.
+        if (estado) {
+            const std::string* pendiente = estado->estadoPendiente(interfaz);
+            if (pendiente) {
+                WebUIRuntime::establecerEstado(it->second, *pendiente);
+                estado->marcarEnviado(interfaz);
+            }
+            std::string salida = WebUIRuntime::leerSalida(it->second);
+            if (!salida.empty()) estado->definirSalida(interfaz, salida);
+        }
+
         WebUIRuntime::render(it->second);
     }
 
@@ -81,6 +96,7 @@ void VistasWebUI::sincronizar(
     for (auto it = vistas_.begin(); it != vistas_.end();) {
         if (vigentes.find(it->first) == vigentes.end()) {
             WebUIRuntime::descargar(it->second);
+            if (estado) estado->olvidar(it->first);
             it = vistas_.erase(it);
         } else {
             ++it;

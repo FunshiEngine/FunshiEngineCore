@@ -631,6 +631,14 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
   **Tamaño** fijo, y **Z** (orden de apilado entre varias interfaces).
 - La escena reúne las interfaces activas y las ordena por z para el overlay del
   juego, delante de la camara principal.
+- Un script puede manipular una interfaz: declara un campo `InterfaceComponent*`
+  con `REFLECT_COMPONENTE(campo, "InterfaceComponent")` y **arrastra la interfaz**
+  desde su inspector al campo (igual que con un objeto); en el inspector de la
+  interfaz hay un botón que hace de origen del arrastre. Desde el script, con el
+  handle del campo o `servicios->interfazDeObjeto("nombre")`, se cambia la
+  visibilidad, se fija el estado que recibe la página (`interfazEstablecerEstado`
+  / `interfazEstablecerValor`) y se lee la salida que la página devuelve
+  (`interfazValor`). Ver la tabla de servicios de la sección 13.4.
 
 ---
 
@@ -908,6 +916,7 @@ Declaralos entre `REFLECT_INICIO(<Clase>)` y `REFLECT_FIN` (pueden ir en zona
 |---|---|---|
 | `REFLECT_CAMPO(nombre)` | `int`, `float`, `double`, `bool`, `std::string`, `vec3` | `int vidas = 3;` |
 | `REFLECT_CAMPO(objetivo)` | `GameObject*` | referencia asignable arrastrando un objeto desde la jerarquia |
+| `REFLECT_COMPONENTE(hud, "InterfaceComponent")` | `T*` de un componente | referencia a un componente de otro objeto; se asigna arrastrando el componente desde su inspector. El tipo se escribe como texto |
 | `REFLECT_ARRAY(puntos)` | `std::vector<T>` de primitivas / `vec3` / `std::vector<GameObject*>` | `std::vector<float> ratios;` |
 | `REFLECT_GRUPO(misil)` | struct anidado con su propio bloque `REFLECT_*` | `Misil misil;` |
 | `REFLECT_GRUPOS(oleadas)` | `std::vector<S>` de structs reflejados | `std::vector<Oleada> oleadas;` |
@@ -1096,6 +1105,12 @@ Misma convencion APPEND-ONLY con `servicios->version` al final.
 | `servicios->agregarRigidBody(obj,masa)` (v4) | `bool (void*, float)` | agrega cuerpo con masa; `false` si no hay collider o ya tiene cuerpo |
 | `servicios->instanciarPrefab("Enemigo",padre)` (v5) | `void* (const char*, void*)` | instancia un prefab por nombre como hijo de `padre` (`nullptr` = raiz). Devuelve la raiz de la instancia (valida al final del frame). |
 | `servicios->listarPrefabs()` (v5) | `const char** ()` | lista los nombres de prefabs disponibles; array terminado en `nullptr`. |
+| `servicios->interfazDeObjeto("HUD")` (v6) | `void* (const char*)` | handle de la interfaz web (HUD) del objeto con ese nombre, o `nullptr` si no existe o no tiene `InterfaceComponent`. El handle es opaco: identifica el componente |
+| `servicios->interfazActiva(iface)` (v6) | `bool (const void*)` | estado de visibilidad de la interfaz |
+| `servicios->interfazEstablecerActiva(iface,activa)` (v6) | `void (void*, bool)` | muestra/oculta la interfaz |
+| `servicios->interfazEstablecerEstado(iface,json)` (v6) | `bool (void*, const char*)` | reemplaza el arbol de estado que el motor entrega a la interfaz; `false` si el texto no es un objeto JSON valido |
+| `servicios->interfazEstablecerValor(iface,ruta,valorJson)` (v6) | `bool (void*, const char*, const char*)` | fija un valor en la ruta (JSON Pointer, p. ej. `"/jugador/vida"`; se acepta sin la barra inicial), creando los objetos intermedios; `valorJson` es un literal JSON de cualquier tipo |
+| `servicios->interfazValor(iface,ruta)` (v6) | `const char* (void*, const char*)` | valor que la interfaz devolvio al motor en esa ruta, como texto JSON, o `nullptr` si no existe |
 
 Los deltas del mouse se acumulan durante el frame y se reinician al avanzar al
 siguiente. Se capturan en Juego y cuando el cursor esta bloqueado durante
@@ -1285,6 +1300,7 @@ Las posiciones consultadas o fijadas por `Nativo.posicionX/Y/Z` y
 | Gravedad global | `Nativo.fijarGravedadGlobal(x, y, z)`, `Nativo.gravedadGlobalX/Y/Z` |
 | Gestion de objetos | `Nativo.crearObjeto(nombre, padre)`, `Nativo.destruirObjeto(objeto)`, `Nativo.clonarObjeto(original, padre)`, `Nativo.agregarColliderEsfera/cubo(objeto, radio)`, `Nativo.agregarRigidBody(objeto, masa)` |
 | Prefabs | `Nativo.instanciarPrefab(nombre, padre)`, `Nativo.listarPrefabs()` (devuelve `String[]`) |
+| Interfaces web (HUD) | `Nativo.interfazDeObjeto(nombre)` (handle opaco, `0` si no existe), `Nativo.interfazActiva(iface)`, `Nativo.interfazEstablecerActiva(iface, activa)`, `Nativo.interfazEstablecerEstado(iface, json)`, `Nativo.interfazEstablecerValor(iface, ruta, valorJson)`, `Nativo.interfazValor(iface, ruta)` (texto JSON o `null`) |
 | Teclado | `Nativo.teclaSostiene`, `teclaPresionada`, `teclaSoltada` |
 | Mouse | `Nativo.deltaMouseX`, `Nativo.deltaMouseY` (pixeles por frame) |
 

@@ -641,6 +641,7 @@ endif()
 add_executable(webui-runtime-tests
     ${SRC_DIR}/WebUI/WebUIRuntime.cpp
     ${SRC_DIR}/WebUI/VistasWebUI.cpp
+    ${SRC_DIR}/WebUI/EstadoInterfaces.cpp
     ${SRC_DIR}/Objetos/Componentes/InterfaceComponent.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/WebUIRuntimeTests.cpp
 )

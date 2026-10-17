@@ -24,6 +24,7 @@
 #include <imgui.h>
 
 #include <cctype>
+#include <cstring>
 #include <string>
 
 namespace {
@@ -59,6 +60,24 @@ void SettingsInterface::showDataComponent() {
     if (!comp) return;
 
     ImGui::Text("===Interfaz del jugador (HTML)===");
+
+    // Origen de arrastre: lleva el nombre del objeto dueño de la interfaz para
+    // asignarla a un campo TagTipo::Componente de un script.
+    const std::string etiquetaDrag =
+        std::string("Interfaz de: ") +
+        (gameObject->inputName[0] != '\0' ? gameObject->inputName
+                                          : "(objeto)");
+    ImGui::Button(etiquetaDrag.c_str());
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip(
+            "Arrastra a un campo de script para asignar esta interfaz");
+    if (ImGui::BeginDragDropSource()) {
+        const char* dueno = gameObject->inputName;
+        ImGui::SetDragDropPayload("COMPONENTE_INTERFAZ", dueno,
+                                  std::strlen(dueno) + 1);
+        ImGui::TextUnformatted("Asignar interfaz a un script");
+        ImGui::EndDragDropSource();
+    }
 
     // Boton con la ruta actual: es el destino del arrastre desde el explorador.
     const std::string& ruta = comp->getRutaHtml();

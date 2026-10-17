@@ -405,9 +405,13 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                               completo headless, sin CEF ni GL (tests/CI)
         │   ├── WebUIRuntime.h/.cpp      ← registro + selección de backend (por config,
         │   │                               con fallback al nulo) y despacho de todo
+        │   ├── EstadoInterfaces.h/.cpp  ← estado de runtime por interfaz: dos árboles JSON
+        │   │                               (estado motor→JS y salida JS→motor) por rutas JSON
+        │   │                               Pointer; lógica sin GL/backend (pimpl + nlohmann)
         │   └── VistasWebUI.h/.cpp       ← vistas vivas de una escena, una por interfaz
         │                                   activa: carga, recarga por cambio de .html,
-        │                                   redimensiona y descarga (lógica sin GL)
+        │                                   redimensiona, entrega el estado y recoge la salida,
+        │                                   y descarga (lógica sin GL)
         └── Scenes/
             ├── GameScene.h/.cpp          ← coordinador del frame: render, GUI, física, gizmo,
             │                                previews y pasada de la grilla
@@ -748,8 +752,14 @@ solo como orquestador de arranque y bucle.
   de audio de los componentes. `InputScripts` expone los edges del teclado y el
   delta del mouse en pixeles durante el frame actual.
 -   `BehaviourReflection` implementa la reflexión por macros (`REFLECT_INICIO`,
-  `CAMPO`, `ARRAY`, `GRUPO`, `GRUPOS`, `FIN`), la conversión de valores tipados y la
-  serialización binaria autodescriptiva de los campos.
+  `CAMPO`, `ARRAY`, `GRUPO`, `GRUPOS`, `COMPONENTE`, `FIN`), la conversión de
+  valores tipados y la serialización binaria autodescriptiva de los campos.
+  `CAMPO`, `ARRAY`, `GRUPO`, `GRUPOS`, `COMPONENTE`, `FIN`), la conversión de valores
+  tipados y la serialización binaria autodescriptiva de los campos.
+- Una referencia a un componente de otro objeto (`TagTipo::Componente`, macro
+  `REFLECT_COMPONENTE(campo, "Tipo")`) se serializa por el **nombre del objeto
+  dueño**. El motor la resuelve con dos ganchos que inyecta `GameScene`
+  (`fijarResolverComponentes`): nombre+tipo → puntero, y puntero → nombre dueño.
 - La API cubre propiedades fisicas (masa, gravedad por cuerpo, friccion,
   freeze), gravedad global y gestion de objetos (crear/clonar/destruir,
   agregar collider y cuerpo) con cola diferida a fin de frame; `ClonadorObjetos`
@@ -787,7 +797,8 @@ solo como orquestador de arranque y bucle.
   libera el otro, así que un CRT distinto (p. ej. el estático `/MT`) separa los
   heaps y corrompe la memoria.
 - El editor (`SettingsScript`) dibuja los campos reflejados (escalares, arrays,
-  grupos y referencias a `GameObject`) y dispara la recompilación.
+  grupos, referencias a `GameObject` y a componentes como el `InterfaceComponent`,
+  asignables arrastrando desde su inspector) y dispara la recompilación.
 - Qué compilador se invoca lo decide `BackendCpp::compilador()` con el mismo
   criterio que el resto: `FUNSHI_CXX` del entorno si está (manda siempre), el
   valor que hornea CMake **solo si existe en disco** —la ruta horneada es la del
@@ -819,20 +830,27 @@ el patrón Strategy + registro de los backends de audio y de scripts:
   ancla, desplazamiento, tamaño y `z`); el motor web resuelve los recursos
   relativos (CSS, JS, imágenes) por sí mismo.
 - `IWebUIBackend` es el contrato del motor web: `cargar`, `redimensionar`,
-  `actualizar`, `render` (que devuelve el handle de textura para ImGui), el
-  input neutral (ratón con `BotonRatonWebUI`, rueda, teclado por código de
-  tecla y foco), `descargar` y `apagar`.
+  `actualizar`, `establecerEstado` (entrega el estado JSON a la página),
+  `leerSalida` (recoge `FunshiUI.salida`), `render` (que devuelve el handle de
+  textura para ImGui), el input neutral (ratón con `BotonRatonWebUI`, rueda,
+  teclado por código de tecla y foco), `descargar` y `apagar`.
 - `WebUIRuntime` es la fachada de despacho: mantiene un registro de backends y
   selecciona el activo (por configuración, con fallback al nulo ante un nombre
   desconocido). Es la única puerta que usa el resto del motor.
 - `BackendNullWebUI` corre el ciclo completo sin motor web ni GL, para tests
   headless y CI; los backends reales se registran bajo `-DFUNSHI_WEBUI=ON`.
+- `EstadoInterfaces` guarda, por interfaz viva, dos árboles JSON: el **estado**
+  que el motor entrega a la página y la **salida** que la página devuelve. Se
+  manejan por rutas estilo JSON Pointer. Es lógica pura (pimpl + nlohmann), sin
+  GL ni backend, y los scripts la manipulan por la tabla de servicios.
 - `VistasWebUI` gobierna las vistas vivas de una escena (una por interfaz
   activa): las da de alta, recarga al cambiar la ruta del `.html`,
-  redimensiona, avanza y descarta las que dejan de estar activas.
+  redimensiona, entrega el estado pendiente, recoge la salida, avanza y descarta
+  las que dejan de estar activas.
 - `GameScene` recolecta las interfaces activas (`InterfacesJuego`), sincroniza
-  `VistasWebUI` con el tamaño del área de juego y dibuja cada vista con su
-  textura vía el *draw list* de ImGui, respetando el orden por `z`.
+  `VistasWebUI` con el tamaño del área de juego y su `EstadoInterfaces`, y
+  dibuja cada vista con su textura vía el *draw list* de ImGui, respetando el
+  orden por `z`.
 
 ---
 
@@ -931,8 +949,10 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   tema resueltos; y la identidad del cubemap del Skybox (`CacheCubemap`): la
   clave que decide cada cuanto volver a subirlo a GPU cambia solo si cambia una
   ruta o su fecha de modificación. Solo CPU, sin OpenGL.
-- `scripts-tests` (142): reflexión `SerializeField` (escalares, arrays, grupos
-  anidados) y su round-trip binario; el contrato de flags con el que
+- `scripts-tests` (173): reflexión `SerializeField` (escalares, arrays, grupos
+  anidados y referencias a componentes por `REFLECT_COMPONENTE`, con su
+  resolución por nombre del objeto dueño) y su round-trip binario; el contrato
+  de flags con el que
   `BackendCpp` compila los scripts (CRT, `/EHsc`, familia de compilador, los
   ARGV armados sin shell ni redirección); la resolución de la carpeta de
   cabeceras del script (`RutaCabecerasScript`: absoluta del checkout o nombre
@@ -972,11 +992,13 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   resto del objeto.
 - `barra-progreso-tests` (8): `BarraProgresoTexto` (formato de la barra de la
   ventana Estado, acotado ante `hecha > total` y `total == 0`).
-- `webui-runtime-tests` (25): `WebUIRuntime` y `VistasWebUI` sobre el backend
-  nulo: selección de backend con fallback al nulo ante un nombre desconocido,
-  ciclo de vida de una vista sin motor web (`cargar`→`actualizar`→`render`→
-  `descargar`) y el gestor de vistas de una escena (alta, recarga al cambiar la
-  ruta del `.html`, redimensionado y descarte de las que dejan de estar activas).
+- `webui-runtime-tests` (50): `WebUIRuntime`, `VistasWebUI` y `EstadoInterfaces`
+  sobre el backend nulo: selección de backend con fallback al nulo ante un nombre
+  desconocido, ciclo de vida de una vista sin motor web (`cargar`→`actualizar`→
+  `render`→`descargar`), el gestor de vistas de una escena (alta, recarga al
+  cambiar la ruta del `.html`, redimensionado y descarte de las que dejan de
+  estar activas), el estado por interfaz por rutas JSON Pointer y el intercambio
+  del estado pendiente/olvido en el ciclo de vistas.
 - `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia`): el acento
   llega a todos los roles de ImGui y el modo B/N deja la paleta monocroma.
 - `comandos-tests` (77): undo/redo del editor (7 comandos, cadena de redo

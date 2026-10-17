@@ -25,6 +25,7 @@
 #include "VistaWebUI.h"
 
 class InterfaceComponent;
+class EstadoInterfaces;
 
 // Conjunto de vistas web vivas de una escena, una por interfaz activa. Lleva el
 // ciclo de vida frente al runtime web: carga la vista de cada interfaz que
@@ -37,9 +38,12 @@ public:
     // Sincroniza con la lista de interfaces activas (ya ordenadas por z). Crea,
     // recarga, redimensiona, avanza y descarga segun corresponda. Las medidas
     // del contenedor (ancho x alto, en pixeles) son el area de las vistas con
-    // tamano automatico; las de tamano fijo usan el suyo.
+    // tamano automatico; las de tamano fijo usan el suyo. Si `estado` no es
+    // nulo, entrega a cada vista el estado pendiente de su interfaz y vuelca en
+    // el estado la salida que el JS haya publicado.
     void sincronizar(const std::vector<InterfaceComponent*>& interfaces,
-                     int anchoContenedor, int altoContenedor, float deltaTime);
+                     int anchoContenedor, int altoContenedor, float deltaTime,
+                     EstadoInterfaces* estado = nullptr);
 
     // Vista de una interfaz, o nullptr si no tiene vista viva.
     const VistaWebUI* buscar(const InterfaceComponent* interfaz) const;

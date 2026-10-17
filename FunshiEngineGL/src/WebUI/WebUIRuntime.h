@@ -54,6 +54,9 @@ public:
                              std::string& error);
     static void redimensionar(VistaWebUI& vista, int ancho, int alto);
     static void actualizar(VistaWebUI& vista, float deltaTime);
+    static void establecerEstado(VistaWebUI& vista,
+                                 const std::string& jsonEstado);
+    static std::string leerSalida(VistaWebUI& vista);
     static std::uint64_t render(VistaWebUI& vista);
     static void ratonMover(VistaWebUI& vista, int x, int y);
     static void ratonBoton(VistaWebUI& vista, int boton, bool abajo);

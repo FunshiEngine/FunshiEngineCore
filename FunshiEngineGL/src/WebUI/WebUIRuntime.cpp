@@ -97,6 +97,15 @@ void WebUIRuntime::actualizar(VistaWebUI& vista, float deltaTime) {
     backendActivo().actualizar(vista, deltaTime);
 }
 
+void WebUIRuntime::establecerEstado(VistaWebUI& vista,
+                                    const std::string& jsonEstado) {
+    backendActivo().establecerEstado(vista, jsonEstado);
+}
+
+std::string WebUIRuntime::leerSalida(VistaWebUI& vista) {
+    return backendActivo().leerSalida(vista);
+}
+
 std::uint64_t WebUIRuntime::render(VistaWebUI& vista) {
     return backendActivo().render(vista);
 }

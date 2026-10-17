@@ -33,7 +33,7 @@
 #include "../Configuracion/DimensionProyecto.h"
 #include "../Audio/AudioClipsManager.h"
 #include "../WebUI/VistasWebUI.h"
-
+#include "../WebUI/EstadoInterfaces.h"
 class CameraComponent;
 class EditorController;
 class Transform;
@@ -140,6 +140,10 @@ private:
     // produce textura, asi que no se dibuja nada hasta que exista un backend
     // real.
     VistasWebUI vistasWebUI_;
+    // Estado JSON de cada interfaz viva (lo que el motor entrega a la interfaz y
+    // lo que esta devuelve). Los scripts lo manipulan via la tabla de servicios;
+    // pintarInterfacesJuego() lo sincroniza con las vistas.
+    EstadoInterfaces estadoInterfaces_;
     // Dimension del proyecto (2D plano / 3D con profundidad). La fija main y el
     // gestor de proyectos antes de cargar la escena; gobierna la siembra de la
     // grilla, la posicion de la camara inicial y (fase de render) el modo 2D.

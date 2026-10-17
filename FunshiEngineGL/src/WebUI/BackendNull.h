@@ -54,6 +54,9 @@ public:
 
     void actualizar(VistaWebUI&, float) override {}
 
+    void establecerEstado(VistaWebUI&, const std::string&) override {}
+    std::string leerSalida(VistaWebUI&) override { return std::string(); }
+
     std::uint64_t render(VistaWebUI&) override { return 0; }
 
     void ratonMover(VistaWebUI&, int, int) override {}

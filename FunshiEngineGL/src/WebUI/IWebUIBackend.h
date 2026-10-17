@@ -55,6 +55,17 @@ public:
     // Avanza el motor web (una llamada por frame). deltaTime en segundos.
     virtual void actualizar(VistaWebUI& vista, float deltaTime) = 0;
 
+    // Entrega a la interfaz el estado JSON que el motor preparo (el backend lo
+    // publica y ejecuta `FunshiUI.actualizar(estado)`). En el backend nulo es
+    // no-op.
+    virtual void establecerEstado(VistaWebUI& vista,
+                                  const std::string& jsonEstado) = 0;
+
+    // Salida actual de la interfaz (`FunshiUI.salida`) como texto JSON, o
+    // cadena vacia si no hay. El ciclo de vistas la vuelca en el estado de la
+    // interfaz. En el backend nulo siempre esta vacia.
+    virtual std::string leerSalida(VistaWebUI& vista) = 0;
+
     // Sube el frame actual a la textura de la vista y devuelve su handle (0 si
     // aun no hay frame listo). Deja `vista.textura`/`vista.handleImGui` al dia.
     virtual std::uint64_t render(VistaWebUI& vista) = 0;
