@@ -800,6 +800,16 @@ void GameScene::pintarVistaInterfaz() {
         seleccionado ? seleccionado->getComponent<InterfaceComponent>() : nullptr;
     if (!seleccionado || !interfaz || interfaz->getRutaHtml().empty()) return;
 
+    // Sincronizar la vista del objeto seleccionado para el preview del editor,
+    // de modo que la textura web este disponible en la ventana dockable.
+    const ImGuiIO& io = ImGui::GetIO();
+    std::vector<InterfaceComponent*> uno{interfaz};
+    vistasWebUI_.sincronizar(uno,
+                             static_cast<int>(io.DisplaySize.x),
+                             static_cast<int>(io.DisplaySize.y),
+                             deltaTime,
+                             nullptr);
+
     if (!ImGui::Begin(WindowNames::VistaInterfaz)) {
         ImGui::End();
         return;
@@ -1430,7 +1440,13 @@ void GameScene::gameScene() {
     }
 
     GUI();
-    pintarInterfacesJuego();
+    // El overlay HUD de las interfaces de juego solo se dibuja en el juego
+    // exportado (sin GUI del editor). En el editor, cada interfaz se previsualiza
+    // unicamente en la ventana dockable "Vista de interfaz" (pintarVistaInterfaz)
+    // para no tapar la GUI del editor con un overlay a pantalla completa.
+    if (!managerGUI) {
+        pintarInterfacesJuego();
+    }
 
     if (!CameraFrameSafety::validarCamara(sceneRegistry.get(),
                                           activeCameraObject, camara)) {
