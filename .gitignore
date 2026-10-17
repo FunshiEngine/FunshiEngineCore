@@ -116,6 +116,11 @@ FunshiEngineGL/*.run
 # ni del juego)
 FunshiEngineGL/sondas/
 
+# Distribución CEF descargada en configure (Fase 4 WebUI): ~657 MB el tarball
+# y ~3.6 GB extraída. No se versiona; CMake la deja bajo el build dir.
+FunshiEngineGL/.cef/
+FunshiEngineGL/.cef_cache/
+
 # Temporary refactoring/build scripts
 FunshiEngineGL/fix_build.py
 FunshiEngineGL/gui_contents.txt

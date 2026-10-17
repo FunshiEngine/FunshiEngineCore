@@ -43,6 +43,34 @@ public:
     // Nombre corto y estable del backend ("null", "cef", ...).
     virtual const char* nombre() const = 0;
 
+    // Ejecuta el rol de SUBPROCESO del motor web si este proceso fue relanzado
+    // como tal (p. ej. CEF reejecuta el binario con --type=renderer). Devuelve
+    // el codigo de salida (>=0) si este proceso ES un subproceso; -1 si no lo es
+    // y el motor debe seguir arrancando normal. Se llama una sola vez, al
+    // comienzo de main y antes de cualquier inicializacion del motor (ventana,
+    // log, GL). El backend nulo no tiene subprocesos y devuelve -1.
+    virtual int ejecutarSubproceso(int argc, char** argv) {
+        (void)argc;
+        (void)argv;
+        return -1;
+    }
+
+    // Arranca el motor web global del backend (una vez por proceso, despues de
+    // ejecutarSubproceso y ya con el contexto grafico de la ventana listo).
+    // Devuelve false si no pudo arrancar; el motor sigue corriendo con las
+    // vistas sin textura. El backend nulo no arranca nada y devuelve true.
+    virtual bool inicializar(int argc, char** argv) {
+        (void)argc;
+        (void)argv;
+        return true;
+    }
+
+    // Bombea el bucle de mensajes del motor web (una vez por frame, en el hilo
+    // principal). Los backends que corren su propio bucle no hacen nada; los que
+    // usan bomba externa (CEF con external_message_pump) procesan aqui los
+    // callbacks pendientes. El backend nulo no hace nada.
+    virtual void bombear() {}
+
     // Crea la vista, carga el .html y reserva el area de dibujo (ancho/alto en
     // pixeles del contenedor). Devuelve false y describe `error` si no pudo.
     // Con exito, `vista` queda con cargada = true.

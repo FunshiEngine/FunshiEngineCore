@@ -49,6 +49,22 @@ public:
     // Backend activo (nunca nullptr: cae al nulo).
     static IWebUIBackend& backendActivo();
 
+    // Rol de subproceso: si el proceso actual fue relanzado como subproceso del
+    // backend web (CEF), ejecuta ese rol y devuelve su codigo de salida (>=0).
+    // Devuelve -1 si no es un subproceso: el motor debe seguir arrancando. Se
+    // invoca al comienzo de main, antes de tocar ventana/log/GL.
+    static int ejecutarSubproceso(int argc, char** argv);
+
+    // Arranca el motor web global del backend activo. Devuelve false si no pudo;
+    // el motor sigue corriendo con las vistas sin textura (nunca aborta por
+    // esto). Idempotente. Se llama una vez, ya con el contexto grafico listo.
+    static bool inicializar(int argc, char** argv);
+
+    // Bombea el bucle de mensajes del backend activo (una vez por frame, hilo
+    // principal). Sin backend real (o con uno que corra su propio bucle) no
+    // hace nada.
+    static void bombear();
+
     // Despacho: toda la aplicacion pasa por aca. Reenvia al backend activo.
     static VistaWebUI cargar(const std::string& rutaHtml, int ancho, int alto,
                              std::string& error);

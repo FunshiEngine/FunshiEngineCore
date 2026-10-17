@@ -29,10 +29,11 @@ class EstadoInterfaces;
 
 // Conjunto de vistas web vivas de una escena, una por interfaz activa. Lleva el
 // ciclo de vida frente al runtime web: carga la vista de cada interfaz que
-// aparece, recarga si cambia su .html, ajusta el area al contenedor, la avanza
-// por frame (actualizar + render) y descarga la de las interfaces que ya no
-// estan. Es logica sin GL ni ImGui: con el backend nulo corre entera en
-// headless, y por eso se puede probar sin hardware.
+// aparece, recarga si cambia su .html o si el archivo cambia en disco (mtime),
+// ajusta el area al contenedor, la avanza por frame (actualizar + render) y
+// descarga la de las interfaces que ya no estan. Es logica sin GL ni ImGui:
+// con el backend nulo corre entera en headless, y por eso se puede probar sin
+// hardware.
 class VistasWebUI {
 public:
     // Sincroniza con la lista de interfaces activas (ya ordenadas por z). Crea,
@@ -47,6 +48,9 @@ public:
 
     // Vista de una interfaz, o nullptr si no tiene vista viva.
     const VistaWebUI* buscar(const InterfaceComponent* interfaz) const;
+    // Variante mutable: para reenviar input a la vista viva (la preview del
+    // editor). No crea la vista si no existe.
+    VistaWebUI* buscar(const InterfaceComponent* interfaz);
 
     // Descarga todas las vistas.
     void vaciar();

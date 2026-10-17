@@ -169,6 +169,11 @@ private:
     // hay GUI del editor.
     void pintarInterfacesJuego();
 
+    // Ventana dockable con la vista web de la interfaz del objeto seleccionado
+    // (preview del editor). Solo corre con GUI del editor; en el juego
+    // exportado no hay seleccion ni ventana.
+    void pintarVistaInterfaz();
+
     // Cola de compilacion de scripts (play mode). Cada script se agenda y se
     // procesa en DOS fases para que la barra de estado muestre "Compilando X
     // (i de n)..." un frame antes de bloquear el hilo con g++/javac.

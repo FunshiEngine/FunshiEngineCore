@@ -24,10 +24,10 @@
 #include "BackendNull.h"
 #include "IWebUIBackend.h"
 
-#if defined(FUNSHI_WEBUI)
-// Aqui se registran los backends web reales (p. ej. BackendCef) cuando el
-// motor se compila con FUNSHI_WEBUI y sus dependencias. Mientras no exista
-// ninguno, el runtime queda con el backend nulo.
+#if defined(FUNSHI_CEF)
+// Backend CEF real. Se compila en su propia unidad (C++20, con los headers de
+// CEF); este encabezado no incluye CEF, solo declara la clase (pimpl).
+#include "BackendCef.h"
 #endif
 
 namespace {
@@ -39,8 +39,8 @@ std::map<std::string, std::unique_ptr<IWebUIBackend>>& registro() {
     static std::map<std::string, std::unique_ptr<IWebUIBackend>> registro;
     if (registro.empty()) {
         registro.insert({"null", std::make_unique<BackendNullWebUI>()});
-#if defined(FUNSHI_WEBUI)
-        // registro.insert({"cef", std::make_unique<BackendCef>()});
+#if defined(FUNSHI_CEF)
+        registro.insert({"cef", std::make_unique<BackendCefWebUI>()});
 #endif
     }
     return registro;
@@ -139,6 +139,35 @@ void WebUIRuntime::foco(VistaWebUI& vista, bool activo) {
 
 void WebUIRuntime::descargar(VistaWebUI& vista) {
     backendActivo().descargar(vista);
+}
+
+int WebUIRuntime::ejecutarSubproceso(int argc, char** argv) {
+    // Todos los backends registrados prueban si este proceso es un subproceso
+    // suyo. El nulo devuelve -1 (no tiene). El primero que reconozca el proceso
+    // se queda con el.
+    for (auto& par : registro()) {
+        const int codigo = par.second->ejecutarSubproceso(argc, argv);
+        if (codigo >= 0) return codigo;
+    }
+    return -1;
+}
+
+bool WebUIRuntime::inicializar(int argc, char** argv) {
+    IWebUIBackend& backend = backendActivo();
+    if (backend.inicializar(argc, argv)) return true;
+
+    // El backend elegido no pudo arrancar (p. ej. falta el runtime de CEF):
+    // se cae al nulo para no dejar el motor sin backend. El ciclo sigue y las
+    // vistas quedan sin textura; la GUI muestra el motivo en vista.error.
+    if (backendSeleccionado() != "null") {
+        backendSeleccionado() = "null";
+        return backendActivo().inicializar(argc, argv);
+    }
+    return false;
+}
+
+void WebUIRuntime::bombear() {
+    backendActivo().bombear();
 }
 
 void WebUIRuntime::apagar() {

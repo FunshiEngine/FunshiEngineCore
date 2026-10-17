@@ -40,6 +40,9 @@
 #include "../Behaviour/ScriptRuntime.h"
 #include "../States/ApplicationStateMachine.h"
 #include "../States/OrquestadorEstadoGUI.h"
+#ifdef FUNSHI_CEF
+#include "../WebUI/WebUIRuntime.h"
+#endif
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -119,7 +122,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 // Entry point principal (Linux y fallback Windows)
 int EjecutarJuego(int argc, char* argv[]) {
+#ifdef FUNSHI_CEF
+    // Igual que en el editor: si CEF relanzo este binario como subproceso, se
+    // ejecuta ese rol y no se arranca el juego.
+    {
+        const int codigoSubproceso = WebUIRuntime::ejecutarSubproceso(argc, argv);
+        if (codigoSubproceso >= 0) return codigoSubproceso;
+    }
+#else
     (void)argc; (void)argv; // En exportacion no se usan argumentos CLI
+#endif
 
     // 1. Redirigir salida al log
     std::string rutaLog = redirigirSalidaALog(argc > 0 ? argv[0] : nullptr);
@@ -220,8 +232,20 @@ int EjecutarJuego(int argc, char* argv[]) {
     // 13. Bucle principal del juego
     Time::start();
 
+#ifdef FUNSHI_CEF
+    // Motor web: mismo ciclo que el editor (init una vez, pump por frame,
+    // apagado al salir). Sin runtime CEF cae al nulo y el juego sigue.
+    if (!WebUIRuntime::inicializar(argc, argv)) {
+        std::cout << "[webui] Sin backend web real en el juego exportado."
+                  << std::endl;
+    }
+#endif
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+#ifdef FUNSHI_CEF
+        WebUIRuntime::bombear();
+#endif
         Time::update();
 
         ImGui_ImplOpenGL3_NewFrame();
@@ -250,6 +274,10 @@ int EjecutarJuego(int argc, char* argv[]) {
     scene->cerrarSimulacionAntesDeGuardar();
     scene->descargarScripts();
     ScriptRuntime::apagarScripts();
+
+#ifdef FUNSHI_CEF
+    WebUIRuntime::apagar();
+#endif
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();

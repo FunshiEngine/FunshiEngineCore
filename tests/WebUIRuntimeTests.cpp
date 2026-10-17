@@ -25,14 +25,19 @@
 //   - ciclo de vida completo de una vista sin GPU (cargar/redimensionar/
 //     actualizar/render/input/descargar),
 //   - el gestor crea una vista por interfaz activa, la recarga si cambia el
-//     .html, la redimensiona con el contenedor y la descarga al desaparecer,
+//     .html o si el archivo cambia en disco (mtime), la redimensiona con el
+//     contenedor y la descarga al desaparecer,
 //   - el estado por interfaz arma el arbol JSON del motor y lee el que la
 //     interfaz devuelve, por rutas estilo JSON Pointer,
 //   - el ciclo de vistas entrega el estado pendiente de cada interfaz y olvida
 //     el de la que se descarga.
 
+#include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "../FunshiEngineGL/src/Objetos/Componentes/InterfaceComponent.h"
@@ -159,6 +164,68 @@ void gestorDeVistas() {
           "vaciar descarga todas las vistas");
 }
 
+// Recarga en caliente: si el .html cambia en disco, la vista se rehace sin
+// cambiar la ruta del componente. Con archivo ilegible no hay recarga.
+void recargaPorMtime() {
+    namespace fs = std::filesystem;
+    const fs::path carpeta =
+        fs::temp_directory_path() / "funshi_webui_mtime_tests";
+    std::error_code ec;
+    fs::create_directories(carpeta, ec);
+    const fs::path html = carpeta / "hud.html";
+    {
+        std::ofstream f(html.string(), std::ios::trunc);
+        f << "<html><body>v1</body></html>";
+    }
+
+    InterfaceComponent hud;
+    hud.setRutaHtml(html.string());
+    VistasWebUI vistas;
+    std::vector<InterfaceComponent*> lista{&hud};
+    vistas.sincronizar(lista, 800, 600, 0.016f);
+    const VistaWebUI* vista = vistas.buscar(&hud);
+    CHECK(vista != nullptr, "la vista del .html temporal se crea");
+    CHECK(vista && vista->mtimeHtml.has_value(),
+          "al cargar un archivo real se guarda su sello mtime");
+
+    // Sin tocar el archivo: el sello no cambia y la vista no se rehace.
+    const SelloEscrituraWebUI selloAntes =
+        vista ? vista->mtimeHtml : std::nullopt;
+    vistas.sincronizar(lista, 800, 600, 0.016f);
+    vista = vistas.buscar(&hud);
+    CHECK(vista && vista->mtimeHtml == selloAntes,
+          "sin cambios en disco la vista conserva su sello");
+
+    // Guardado externo: el sello cambia y la vista se recarga.
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    {
+        std::ofstream f(html.string(), std::ios::trunc);
+        f << "<html><body>v2</body></html>";
+    }
+    vistas.sincronizar(lista, 800, 600, 0.016f);
+    vista = vistas.buscar(&hud);
+    CHECK(vista != nullptr && vista->cargada,
+          "tras guardar el .html la vista sigue cargada");
+    CHECK(vista && vista->mtimeHtml != selloAntes,
+          "tras guardar el .html la vista recarga con el sello nuevo");
+
+    // Ruta ilegible: no hay recarga por mtime (sello -1), solo por ruta.
+    InterfaceComponent fantasma;
+    fantasma.setRutaHtml("UI/no-existe.html");
+    VistasWebUI otras;
+    otras.sincronizar(std::vector<InterfaceComponent*>{&fantasma}, 800, 600,
+                      0.016f);
+    const VistaWebUI* vistaFantasma = otras.buscar(&fantasma);
+    CHECK(vistaFantasma && !vistaFantasma->mtimeHtml.has_value(),
+          "un .html ilegible deja el sello vacio");
+    otras.sincronizar(std::vector<InterfaceComponent*>{&fantasma}, 800, 600,
+                      0.016f);
+    CHECK(otras.buscar(&fantasma) != nullptr,
+          "un .html ilegible no rompe el ciclo");
+
+    fs::remove_all(carpeta, ec);
+}
+
 // Estado por interfaz: el motor arma el arbol que recibe la interfaz (estado) y
 // lee el que esta devuelve (salida), por rutas JSON Pointer.
 void estadoDeInterfaces() {
@@ -267,6 +334,7 @@ int main() {
     seleccionDeBackend();
     cicloDeVidaSinGL();
     gestorDeVistas();
+    recargaPorMtime();
     estadoDeInterfaces();
     sincronizacionConEstado();
 

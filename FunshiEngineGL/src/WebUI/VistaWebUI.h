@@ -20,7 +20,16 @@
 #define VISTAWEBUI_H
 
 #include <cstdint>
+#include <optional>
 #include <string>
+
+// Sello de ultima escritura de un archivo (file_time_type en nanosegundos).
+// nullopt = el archivo no existe o no se pudo leer: no hay recarga por mtime,
+// solo por cambio de ruta (el backend real reporta su propio error de carga).
+// Es optional (y no -1) porque en Linux los nanos de file_time pueden ser
+// negativos segun la epoca del reloj del filesystem: cualquier long long es un
+// sello valido.
+using SelloEscrituraWebUI = std::optional<long long>;
 
 // Una interfaz web ya montada por un backend: el resultado de cargar un .html.
 // Es el analogo de ComportamientoCargado para el subsistema web: un valor que
@@ -43,6 +52,11 @@ struct VistaWebUI {
     int alto = 0;          // alto del area reservada, en pixeles
     bool cargada = false;  // true tras un cargar() exitoso
     std::string error;     // motivo del ultimo fallo, para mostrar en la GUI
+    // Sello de escritura del .html al cargarla: si el archivo cambia en disco
+    // (editar y guardar con un editor externo), el gestor la recarga. nullopt
+    // si el archivo no existia al cargar (rutas relativas del proyecto que aun
+    // no resuelven, tests headless): en ese caso no hay recarga por mtime.
+    SelloEscrituraWebUI mtimeHtml = std::nullopt;
 
     // Una vista sirve para dibujar cuando termino de cargar. Una vista cargada
     // sin textura (backend nulo) no rompe el ciclo: render() devuelve 0 y el

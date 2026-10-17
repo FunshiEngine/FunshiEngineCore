@@ -7,7 +7,9 @@ cmake_minimum_required(VERSION 3.15)
 # instalador salen del mismo tag, en vez de dos números escritos a mano que
 # nadie sincroniza.
 set(FUNSHI_VERSION "0.5.4" CACHE STRING "Versión del producto (X.Y.Z)")
-project(FunshiEngineGL VERSION ${FUNSHI_VERSION} LANGUAGES CXX)
+# C y CXX: el proyecto es C++, pero las distribuciones de CEF (cef_variables.cmake)
+# corren CHECK_C_COMPILER_FLAG en configure y CMake exige el lenguaje habilitado.
+project(FunshiEngineGL VERSION ${FUNSHI_VERSION} LANGUAGES C CXX)
 message(STATUS "FunshiEngineGL ${PROJECT_VERSION} (FUNSHI_VERSION=${FUNSHI_VERSION})")
 # Sustituciones de configure_file para el .rc: el icono se referencia relativo
 # al .rc (se copia al build), la version se lleva a comas (1,2,3,0).
@@ -47,6 +49,9 @@ list(REMOVE_ITEM SOURCES
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Diagnosticos/RegistroDiagnosticos.cpp
     ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp)
+# El backend CEF exige C++20 (headers de CEF) y el motor compila en C++17, asi
+# que vive en su propia unidad/target (funshi_webui_cef) y no entra en la GLOB.
+list(REMOVE_ITEM SOURCES ${SRC_DIR}/WebUI/BackendCef.cpp)
 add_library(funshi_project_core STATIC
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp)
@@ -81,6 +86,9 @@ option(FUNSHI_JAVA "Soporte de scripts Java via JNI (requiere JDK en build)" ON)
 # backends web reales (p. ej. CEF) cuando el motor se enlaza con sus
 # dependencias. Sin ningun backend real el runtime cae al nulo y no dibuja nada.
 option(FUNSHI_WEBUI "Soporte de interfaces web (backend CEF)" ON)
+# Soporte de backend CEF concreto (consume distribucion CEF descargada en
+# configure). Requiere FUNSHI_WEBUI=ON.
+option(FUNSHI_CEF "Compilar backend CEF real" OFF)
 # Build runtime-only: solo la libreria del motor, sin ejecutable del editor ni
 # objetivos de prueba. Lo usa el exportador de juegos para compilar el binario
 # standalone (add_subdirectory de la raiz del engine con esta opcion FORZADA).
@@ -139,11 +147,155 @@ if(BUILD_ENGINE)
     target_include_directories(funshi_engine PUBLIC ${SRC_DIR})
     target_compile_definitions(funshi_engine PUBLIC GLM_ENABLE_EXPERIMENTAL)
 
-    # El subsistema de interfaces web (WebUI) se compila siempre (contrato +
-    # backend nulo, sin dependencias). FUNSHI_WEBUI habilita el registro de los
-    # backends reales; hoy no existe ninguno, asi que solo queda declarada.
     if(FUNSHI_WEBUI)
         target_compile_definitions(funshi_engine PUBLIC FUNSHI_WEBUI)
+    endif()
+
+    # --- Backend CEF ----------------------------------------------------------
+    # Solo con FUNSHI_CEF=ON se descarga la distribución (~657 MB) y se
+    # compila funshi_webui_cef (C++20). Con FUNSHI_WEBUI=ON pero FUNSHI_CEF=OFF
+    # el motor compila sin CEF y el runtime cae al backend nulo.
+    if(FUNSHI_CEF AND FUNSHI_WEBUI)
+        if(WIN32)
+            set(CEF_PLATFORM "windows64")
+        else()
+            set(CEF_PLATFORM "linux64")
+        endif()
+        set(CEF_VERSION "154.0.34+g14c5a08+chromium-154.0.8037.98")
+        set(CEF_PKG "cef_binary_${CEF_VERSION}_${CEF_PLATFORM}.tar.bz2")
+        # SHA1 pineado de la distribución Linux (sonda CEF OSR). En Windows
+        # todavía no hay pin verificado: se descarga sin EXPECTED_HASH y se
+        # avisa en el log de configure hasta pinarlo.
+        set(CEF_SHA1 "d0a822afcf769371e961344b64f5a461066b6a0f")
+        # La distribución vive bajo el build dir, no en el source: no contamina
+        # el árbol ni el estado de git (ver .gitignore: .cef/, .cef_cache/).
+        set(CEF_CACHE_DIR "${CMAKE_BINARY_DIR}/cef_cache")
+        set(CEF_SRC_DIR "${CMAKE_BINARY_DIR}/cef")
+        if(NOT EXISTS "${CEF_CACHE_DIR}")
+            file(MAKE_DIRECTORY "${CEF_CACHE_DIR}")
+        endif()
+        if(NOT EXISTS "${CEF_SRC_DIR}")
+            file(MAKE_DIRECTORY "${CEF_SRC_DIR}")
+        endif()
+        set(CEF_TAR "${CEF_CACHE_DIR}/${CEF_PKG}")
+        if(NOT EXISTS "${CEF_TAR}")
+            message(STATUS "Descargando CEF ${CEF_VERSION}...")
+            if(WIN32)
+                message(WARNING "CEF Windows sin SHA1 pineado: descarga sin "
+                    "verificacion hasta pinarlo.")
+                file(DOWNLOAD
+                    "https://cef-builds.spotifycdn.com/${CEF_PKG}"
+                    "${CEF_TAR}"
+                    SHOW_PROGRESS)
+            else()
+                file(DOWNLOAD
+                    "https://cef-builds.spotifycdn.com/${CEF_PKG}"
+                    "${CEF_TAR}"
+                    EXPECTED_HASH SHA1=${CEF_SHA1}
+                    SHOW_PROGRESS)
+            endif()
+        endif()
+        set(CEF_ROOT "${CEF_SRC_DIR}/cef_binary_${CEF_VERSION}_${CEF_PLATFORM}")
+        if(NOT EXISTS "${CEF_ROOT}/include/cef_app.h")
+            message(STATUS "Descomprimiendo CEF en ${CEF_SRC_DIR}...")
+            execute_process(
+                COMMAND ${CMAKE_COMMAND} -E tar xjf "${CEF_TAR}"
+                WORKING_DIRECTORY "${CEF_SRC_DIR}"
+                RESULT_VARIABLE TAR_RES
+            )
+            if(NOT TAR_RES EQUAL 0)
+                message(FATAL_ERROR "No se pudo descomprimir ${CEF_TAR}")
+            endif()
+        endif()
+        if(EXISTS "${CEF_ROOT}/cmake")
+            set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CEF_ROOT}/cmake")
+            find_package(CEF REQUIRED)
+            # Solo el wrapper (cef_variables fija CEF_LIBCEF_DLL_WRAPPER_PATH a
+            # <distro>/libcef_dll). NO se agrega el CMakeLists raiz de la
+            # distribucion: ese raiz tambien agrega cefsimple/cefclient/ceftests,
+            # que son muestras de CEF compiladas con -Werror y no compilan con el
+            # GCC actual (-Werror=self-move); el motor solo necesita el wrapper.
+            add_subdirectory("${CEF_LIBCEF_DLL_WRAPPER_PATH}" libcef_dll_wrapper)
+            if(OS_LINUX)
+                ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
+            endif()
+            add_library(funshi_webui_cef STATIC ${SRC_DIR}/WebUI/BackendCef.cpp)
+            set_target_properties(funshi_webui_cef PROPERTIES
+                CXX_STANDARD 20
+                CXX_STANDARD_REQUIRED ON
+                CXX_EXTENSIONS OFF)
+            target_include_directories(funshi_webui_cef PRIVATE
+                ${SRC_DIR}
+                ${CEF_ROOT}
+                ${CMAKE_CURRENT_SOURCE_DIR}/External)
+            add_dependencies(funshi_webui_cef libcef_dll_wrapper)
+            # Orden de enlace estatico: primero el consumidor (wrapper), despues
+            # el proveedor (libcef.so). Al reves, GNU ld no rescane libcef.so y
+            # el wrapper queda con cef_string_* sin resolver.
+            target_link_libraries(funshi_webui_cef PRIVATE
+                libcef_dll_wrapper
+                libcef_lib
+                ${CEF_STANDARD_LIBS})
+            if(WIN32)
+                target_compile_definitions(funshi_webui_cef PRIVATE _HAS_STD_BYTE=0)
+            endif()
+            target_compile_definitions(funshi_engine PUBLIC FUNSHI_CEF)
+            target_link_libraries(funshi_engine PRIVATE funshi_webui_cef)
+            if(NOT BUILD_RUNTIME AND TARGET ${PROJECT_NAME})
+                target_link_libraries(${PROJECT_NAME} PRIVATE funshi_webui_cef)
+            endif()
+            message(STATUS "CEF ${CEF_VERSION} habilitado (funshi_webui_cef C++20).")
+            # El runtime de CEF (libcef + recursos) debe estar junto al
+            # ejecutable: CefInitialize los resuelve contra el dir del binario.
+            # Sin esta copia, inicializar() falla fuera del árbol de la sonda.
+            if(NOT BUILD_RUNTIME AND TARGET ${PROJECT_NAME})
+                if(UNIX)
+                    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${CEF_ROOT}/Release/libcef.so"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/libcef.so"
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${CEF_ROOT}/Resources/chrome_100_percent.pak"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/chrome_100_percent.pak"
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${CEF_ROOT}/Resources/chrome_200_percent.pak"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/chrome_200_percent.pak"
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${CEF_ROOT}/Resources/resources.pak"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/resources.pak"
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${CEF_ROOT}/Resources/icudtl.dat"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/icudtl.dat"
+                        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                            "${CEF_ROOT}/Resources/locales"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/locales"
+                        COMMENT "Copiando runtime CEF junto al editor")
+                else()
+                    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${CEF_ROOT}/Release/libcef.dll"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/libcef.dll"
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${CEF_ROOT}/Resources/chrome_100_percent.pak"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/chrome_100_percent.pak"
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${CEF_ROOT}/Resources/chrome_200_percent.pak"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/chrome_200_percent.pak"
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${CEF_ROOT}/Resources/resources.pak"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/resources.pak"
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${CEF_ROOT}/Resources/icudtl.dat"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/icudtl.dat"
+                        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                            "${CEF_ROOT}/Resources/locales"
+                            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/locales"
+                        COMMENT "Copiando runtime CEF junto al editor")
+                endif()
+            endif()
+        else()
+            message(WARNING "No se encontro CEF en ${CEF_ROOT}; backend CEF no se habilitara.")
+        endif()
     endif()
 
     # Soporte opcional de scripts Java (JNI). Se detecta el JDK con FindJNI y

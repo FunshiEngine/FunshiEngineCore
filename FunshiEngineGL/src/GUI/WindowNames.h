@@ -33,6 +33,7 @@ inline constexpr const char* EditorDockSpace = "EditorDockSpace";
 inline constexpr const char* Status         = "Estado";
 inline constexpr const char* Terminal       = "Terminal";
 inline constexpr const char* CameraList     = "Camaras";
+inline constexpr const char* VistaInterfaz  = "Vista de interfaz";
 } // namespace WindowNames
 
 #endif

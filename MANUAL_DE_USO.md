@@ -631,6 +631,16 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
   **Tamaño** fijo, y **Z** (orden de apilado entre varias interfaces).
 - La escena reúne las interfaces activas y las ordena por z para el overlay del
   juego, delante de la camara principal.
+- La ventana dockable **Vista de interfaz** muestra la vista web de la interfaz
+  del objeto seleccionado (preview del editor): ratón y rueda funcionan sobre
+  la preview, el foco sigue al ratón y el teclado llega a los campos de la
+  página. Sin backend web real la ventana avisa que no hay textura.
+- **Recarga en caliente**: al guardar el `.html` en un editor externo, la vista
+  se recarga sola en el siguiente frame (por `mtime`), sin tocar el componente.
+- El motor web es CEF (Chromium): se compila con `-DFUNSHI_CEF=ON` (requiere
+  `-DFUNSHI_WEBUI=ON`, que viene activado por defecto). Sin CEF el motor sigue
+  corriendo con las vistas sin textura (backend nulo): el ciclo y los scripts
+  funcionan igual, solo no se dibuja nada.
 - Un script puede manipular una interfaz: declara un campo `InterfaceComponent*`
   con `REFLECT_COMPONENTE(campo, "InterfaceComponent")` y **arrastra la interfaz**
   desde su inspector al campo (igual que con un objeto); en el inspector de la

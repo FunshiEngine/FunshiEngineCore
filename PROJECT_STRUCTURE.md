@@ -397,20 +397,31 @@ FunshiEngineGL/                          ← raíz del repo
         │   └── LimpiarEscenaComando.h/.cpp
         ├── WebUI/
         │   ├── VistaWebUI.h             ← una interfaz web ya montada por un backend
-        │   │                               (estado opaco + ruta .html + textura/handle + área)
-        │   ├── IWebUIBackend.h          ← contrato del motor web (Strategy): cargar,
-        │   │                               redimensionar, actualizar, render, input
-        │   │                               (ratón/tecla/rueda/foco), descargar, apagar
+        │   │                               (estado opaco + ruta .html + sello mtime +
+        │   │                               textura/handle + área)
+        │   ├── IWebUIBackend.h          ← contrato del motor web (Strategy): subproceso,
+        │   │                               init/bombeo/apagado globales, cargar,
+        │   │                               redimensionar, actualizar, estado/salida,
+        │   │                               render, input (ratón/tecla/rueda/foco),
+        │   │                               descargar
         │   ├── BackendNull.h            ← backend sin motor (no-op): corre el ciclo
         │   │                               completo headless, sin CEF ni GL (tests/CI)
+        │   ├── BackendCef.h             ← backend CEF real (pimpl sin headers CEF,
+        │   │                               el motor en C++17 nunca ve a CEF)
+        │   ├── BackendCef.cpp           ← única unidad con CEF (C++20, target
+        │   │                               funshi_webui_cef): OSR, textura, mapa
+        │   │                               GLFW→VK, sentinela de salida JS
         │   ├── WebUIRuntime.h/.cpp      ← registro + selección de backend (por config,
-        │   │                               con fallback al nulo) y despacho de todo
+        │   │                               con fallback al nulo) y despacho del ciclo
+        │   │                               global (subproceso/init/pump/apagado) y de
+        │   │                               cada vista
         │   ├── EstadoInterfaces.h/.cpp  ← estado de runtime por interfaz: dos árboles JSON
         │   │                               (estado motor→JS y salida JS→motor) por rutas JSON
         │   │                               Pointer; lógica sin GL/backend (pimpl + nlohmann)
         │   └── VistasWebUI.h/.cpp       ← vistas vivas de una escena, una por interfaz
-        │                                   activa: carga, recarga por cambio de .html,
-        │                                   redimensiona, entrega el estado y recoge la salida,
+        │                                   activa: carga, recarga por cambio de .html
+        │                                   o por mtime en disco, redimensiona,
+        │                                   entrega el estado y recoge la salida,
         │                                   y descarga (lógica sin GL)
         └── Scenes/
             ├── GameScene.h/.cpp          ← coordinador del frame: render, GUI, física, gizmo,
@@ -829,28 +840,44 @@ el patrón Strategy + registro de los backends de audio y de scripts:
 - El `InterfaceComponent` guarda solo la ruta del `.html` (con su colocación:
   ancla, desplazamiento, tamaño y `z`); el motor web resuelve los recursos
   relativos (CSS, JS, imágenes) por sí mismo.
-- `IWebUIBackend` es el contrato del motor web: `cargar`, `redimensionar`,
-  `actualizar`, `establecerEstado` (entrega el estado JSON a la página),
-  `leerSalida` (recoge `FunshiUI.salida`), `render` (que devuelve el handle de
-  textura para ImGui), el input neutral (ratón con `BotonRatonWebUI`, rueda,
-  teclado por código de tecla y foco), `descargar` y `apagar`.
+- `IWebUIBackend` es el contrato del motor web: `ejecutarSubproceso` (rol de
+  subproceso del motor web, antes de todo en `main`), `inicializar` (arranque
+  una vez por proceso, con GL listo), `bombear` (bucle de mensajes por frame),
+  `cargar`, `redimensionar`, `actualizar`, `establecerEstado` (entrega el
+  estado JSON a la página), `leerSalida` (recoge `FunshiUI.salida`), `render`
+  (que devuelve el handle de textura para ImGui), el input neutral (ratón con
+  `BotonRatonWebUI`, rueda, teclado por código GLFW y foco), `descargar` y
+  `apagar`.
 - `WebUIRuntime` es la fachada de despacho: mantiene un registro de backends y
   selecciona el activo (por configuración, con fallback al nulo ante un nombre
-  desconocido). Es la única puerta que usa el resto del motor.
+  desconocido). Expone el ciclo global (`ejecutarSubproceso`, `inicializar`,
+  `bombear`, `apagar`, que `main.cpp` y `main_juego.cpp` invocan) y reenvía el
+  ciclo de cada vista al backend activo. Es la única puerta que usa el resto
+  del motor.
 - `BackendNullWebUI` corre el ciclo completo sin motor web ni GL, para tests
-  headless y CI; los backends reales se registran bajo `-DFUNSHI_WEBUI=ON`.
+  headless y CI.
+- `BackendCefWebUI` es el backend real sobre CEF 154 (Chromium): una ventana
+  off-screen (OSR) por vista, bitmap BGRA a textura vía `updateTexture2D`,
+  salida JS por sentinela en `console.log`, teclado por mapa GLFW→VK. Vive en
+  su propia unidad C++20 (`BackendCef.cpp`, pimpl sin headers CEF en el resto)
+  y solo se compila con `-DFUNSHI_CEF=ON` (requiere `-DFUNSHI_WEBUI=ON`); CMake
+  descarga la distribución pineada bajo el build dir y copia el runtime junto
+  al binario. Sin CEF el runtime cae al nulo.
 - `EstadoInterfaces` guarda, por interfaz viva, dos árboles JSON: el **estado**
   que el motor entrega a la página y la **salida** que la página devuelve. Se
   manejan por rutas estilo JSON Pointer. Es lógica pura (pimpl + nlohmann), sin
   GL ni backend, y los scripts la manipulan por la tabla de servicios.
 - `VistasWebUI` gobierna las vistas vivas de una escena (una por interfaz
-  activa): las da de alta, recarga al cambiar la ruta del `.html`,
-  redimensiona, entrega el estado pendiente, recoge la salida, avanza y descarta
-  las que dejan de estar activas.
+  activa): las da de alta, recarga al cambiar la ruta del `.html` o al cambiar
+  el archivo en disco (sello `mtime`, patrón `cambioElFuente` de scripts),
+  redimensiona, entrega el estado pendiente, recoge la salida, avanza y
+  descarta las que dejan de estar activas.
 - `GameScene` recolecta las interfaces activas (`InterfacesJuego`), sincroniza
   `VistasWebUI` con el tamaño del área de juego y su `EstadoInterfaces`, y
   dibuja cada vista con su textura vía el *draw list* de ImGui, respetando el
-  orden por `z`.
+  orden por `z`. En el editor además pinta la ventana dockable `Vista de
+  interfaz` con la vista de la interfaz seleccionada (preview + input local
+  con foco por hover).
 
 ---
 
@@ -992,13 +1019,14 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   resto del objeto.
 - `barra-progreso-tests` (8): `BarraProgresoTexto` (formato de la barra de la
   ventana Estado, acotado ante `hecha > total` y `total == 0`).
-- `webui-runtime-tests` (50): `WebUIRuntime`, `VistasWebUI` y `EstadoInterfaces`
+- `webui-runtime-tests` (57): `WebUIRuntime`, `VistasWebUI` y `EstadoInterfaces`
   sobre el backend nulo: selección de backend con fallback al nulo ante un nombre
   desconocido, ciclo de vida de una vista sin motor web (`cargar`→`actualizar`→
   `render`→`descargar`), el gestor de vistas de una escena (alta, recarga al
-  cambiar la ruta del `.html`, redimensionado y descarte de las que dejan de
-  estar activas), el estado por interfaz por rutas JSON Pointer y el intercambio
-  del estado pendiente/olvido en el ciclo de vistas.
+  cambiar la ruta del `.html` o al cambiar el archivo en disco por `mtime`,
+  redimensionado y descarte de las que dejan de estar activas), el estado por
+  interfaz por rutas JSON Pointer y el intercambio del estado pendiente/olvido
+  en el ciclo de vistas.
 - `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia`): el acento
   llega a todos los roles de ImGui y el modo B/N deja la paleta monocroma.
 - `comandos-tests` (77): undo/redo del editor (7 comandos, cadena de redo

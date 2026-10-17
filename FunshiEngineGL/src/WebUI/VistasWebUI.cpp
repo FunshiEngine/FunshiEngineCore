@@ -18,6 +18,8 @@
 */
 #include "VistasWebUI.h"
 
+#include <chrono>
+#include <filesystem>
 #include <set>
 #include <string>
 #include <utility>
@@ -25,6 +27,8 @@
 #include "../Objetos/Componentes/InterfaceComponent.h"
 #include "EstadoInterfaces.h"
 #include "WebUIRuntime.h"
+
+namespace fs = std::filesystem;
 
 namespace {
 
@@ -41,6 +45,22 @@ void medidasDe(const InterfaceComponent* interfaz, int anchoContenedor,
         alto = static_cast<int>(interfaz->getTamano().y);
     }
 }
+
+// Sello de escritura del .html (nanosegundos desde epoch del file_time).
+// nullopt si no existe o no se puede leer: el gestor no recarga por mtime en
+// ese caso (mismo criterio que ScriptRuntime::cambioElFuente con fuentes
+// ausentes: solo el cambio de ruta rehace la vista).
+SelloEscrituraWebUI selloDe(const std::string& rutaHtml) {
+    if (rutaHtml.empty()) return std::nullopt;
+    std::error_code ec;
+    const fs::file_time_type t = fs::last_write_time(fs::path(rutaHtml), ec);
+    if (ec) return std::nullopt;
+    return static_cast<long long>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(t.time_since_epoch())
+            .count());
+}
+
+void sellar(VistaWebUI& vista) { vista.mtimeHtml = selloDe(vista.ruta); }
 
 } // namespace
 
@@ -60,6 +80,7 @@ void VistasWebUI::sincronizar(
             std::string error;
             VistaWebUI vista =
                 WebUIRuntime::cargar(interfaz->getRutaHtml(), ancho, alto, error);
+            sellar(vista);
             it = vistas_.emplace(interfaz, std::move(vista)).first;
         } else {
             VistaWebUI& vista = it->second;
@@ -69,8 +90,23 @@ void VistasWebUI::sincronizar(
                 std::string error;
                 vista = WebUIRuntime::cargar(interfaz->getRutaHtml(), ancho, alto,
                                              error);
+                sellar(vista);
             } else if (vista.ancho != ancho || vista.alto != alto) {
                 WebUIRuntime::redimensionar(vista, ancho, alto);
+            } else {
+                // Recarga en caliente: el .html cambio en disco (guardado
+                // externo) desde que se cargo la vista. Se rehace como si
+                // hubiera cambiado la ruta. Sin sello (archivo ilegible) no se
+                // recarga: evita rehacer la vista en cada frame.
+                const SelloEscrituraWebUI actual = selloDe(vista.ruta);
+                if (actual.has_value() && vista.mtimeHtml.has_value() &&
+                    *actual != *vista.mtimeHtml) {
+                    WebUIRuntime::descargar(vista);
+                    std::string error;
+                    vista = WebUIRuntime::cargar(interfaz->getRutaHtml(), ancho,
+                                                 alto, error);
+                    sellar(vista);
+                }
             }
         }
 
@@ -106,6 +142,11 @@ void VistasWebUI::sincronizar(
 
 const VistaWebUI* VistasWebUI::buscar(
     const InterfaceComponent* interfaz) const {
+    auto it = vistas_.find(interfaz);
+    return it == vistas_.end() ? nullptr : &it->second;
+}
+
+VistaWebUI* VistasWebUI::buscar(const InterfaceComponent* interfaz) {
     auto it = vistas_.find(interfaz);
     return it == vistas_.end() ? nullptr : &it->second;
 }

@@ -59,6 +59,7 @@
 #include "../Configuracion/EditorConfig.h"
 #include "GizmoController.h"
 #include "InterfacesJuego.h"
+#include "../WebUI/WebUIRuntime.h"
 #include <cmath>
 #include <imgui.h>
 #include <iostream>
@@ -740,6 +741,7 @@ void GameScene::GUI() {
     }
     pintarViewportsGUI();
     pintarVentanaCamaras();
+    pintarVistaInterfaz();
     if (managerGUI) managerGUI->getStatusBarGUI()->printGUI();
     ImGui::EndDisabled();
     menuBarGUI->printGUI();
@@ -789,6 +791,87 @@ void GameScene::pintarInterfacesJuego() {
         dibujo->AddImage(vista->handleImGui, ImVec2(x, y),
                          ImVec2(x + vista->ancho, y + vista->alto));
     }
+}
+
+void GameScene::pintarVistaInterfaz() {
+    GameObject* seleccionado =
+        editorController ? editorController->getSelectedObject() : nullptr;
+    InterfaceComponent* interfaz =
+        seleccionado ? seleccionado->getComponent<InterfaceComponent>() : nullptr;
+    if (!seleccionado || !interfaz || interfaz->getRutaHtml().empty()) return;
+
+    if (!ImGui::Begin(WindowNames::VistaInterfaz)) {
+        ImGui::End();
+        return;
+    }
+
+    const VistaWebUI* vistaSoloLectura = vistasWebUI_.buscar(interfaz);
+    if (!vistaSoloLectura || !vistaSoloLectura->cargada) {
+        ImGui::Text("Cargando %s ...", interfaz->getRutaHtml().c_str());
+        ImGui::End();
+        return;
+    }
+    if (!vistaSoloLectura->error.empty()) {
+        ImGui::Text("Error: %s", vistaSoloLectura->error.c_str());
+        ImGui::End();
+        return;
+    }
+    if (!vistaSoloLectura->handleImGui || vistaSoloLectura->ancho <= 0 ||
+        vistaSoloLectura->alto <= 0) {
+        ImGui::Text("Esperando textura del motor web (%s)...",
+                    interfaz->getRutaHtml().c_str());
+        ImGui::End();
+        return;
+    }
+    const int anchoVista = vistaSoloLectura->ancho;
+    const int altoVista = vistaSoloLectura->alto;
+    void* texturaImGui = vistaSoloLectura->handleImGui;
+
+    const float anchoDisponible = ImGui::GetContentRegionAvail().x;
+    const float escala =
+        anchoDisponible > 0 ? anchoDisponible / static_cast<float>(anchoVista)
+                            : 1.0f;
+    const ImVec2 tamano(anchoDisponible > 0 ? anchoDisponible
+                                            : static_cast<float>(anchoVista),
+                        static_cast<float>(altoVista) * escala);
+    const ImVec2 origen = ImGui::GetCursorScreenPos();
+    ImGui::Image(static_cast<ImTextureID>(
+                     reinterpret_cast<std::intptr_t>(texturaImGui)),
+                 tamano);
+
+    // Input local: el clic/rueda sobre la preview se reenvia a la vista en sus
+    // coordenadas (origen arriba-izquierda). El foco sigue al raton: entrar en
+    // la imagen activa la vista, salir la desactiva.
+    VistaWebUI* vista = vistasWebUI_.buscar(interfaz);
+    if (!vista) {
+        ImGui::End();
+        return;
+    }
+    if (ImGui::IsItemHovered()) {
+        const ImVec2 raton = ImGui::GetIO().MousePos;
+        const int lx = static_cast<int>((raton.x - origen.x) / escala);
+        const int ly = static_cast<int>((raton.y - origen.y) / escala);
+        WebUIRuntime::foco(*vista, true);
+        WebUIRuntime::ratonMover(*vista, lx, ly);
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            WebUIRuntime::ratonBoton(*vista, 0, true);
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+            WebUIRuntime::ratonBoton(*vista, 0, false);
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+            WebUIRuntime::ratonBoton(*vista, 1, true);
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+            WebUIRuntime::ratonBoton(*vista, 1, false);
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
+            WebUIRuntime::ratonBoton(*vista, 2, true);
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Middle))
+            WebUIRuntime::ratonBoton(*vista, 2, false);
+        const float rueda = ImGui::GetIO().MouseWheel;
+        if (rueda != 0.0f) WebUIRuntime::ratonRueda(*vista, rueda);
+    } else if (ImGui::IsItemDeactivated()) {
+        WebUIRuntime::foco(*vista, false);
+    }
+
+    ImGui::End();
 }
 
 void GameScene::pintarViewportsGUI() {
