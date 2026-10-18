@@ -35,7 +35,7 @@ por arrastre y escribir scripts con la API exacta que expone el motor.
 15. [Scripting Java (JNI)](#15-scripting-java-jni)
 16. [Hot reload y depuración](#16-hot-reload-y-depuración)
 
-18. [Terminal integrada](#18-terminal-integrada)
+17. [Terminal integrada](#17-terminal-integrada)
 
 ---
 
@@ -1372,8 +1372,7 @@ public void actualizar(long objeto, double deltaTime) {
 - **Ventana Estado:** para cada script muestra nombre, ok/error y mensaje
   (errores de compilacion incluidos), ademas del toolchain detectado.
 - **Errores de carga/compilacion C++ y Java** aparecen en la ventana Estado y
-  se publican en el registro estructurado compartido. También se pueden
-  consultar desde Funshi CLI (repositorio independiente). El mensaje
+  se publican en el registro estructurado compartido. El mensaje
   contextual del componente conserva el error de su fuente; corregilo y vuelve
   a cargar el script.
 - Si un callback del script arroja una excepción durante la ejecución, el
@@ -1385,11 +1384,7 @@ public void actualizar(long objeto, double deltaTime) {
 
 ---
 
-## 17. Herramientas CLI (externo)
-
-La Funshi CLI ha sido migrada a un repositorio independiente: [FunshiEngineCLI](https://github.com/FunshiEngine/FunshiEngineCLI).
-
-Consulta la documentación del nuevo repositorio para compilar, usar y automatizar operaciones vía API JSON por stdin/stdout.## 18. Terminal integrada
+## 17. Terminal integrada
 
 El panel **Terminal** abre una shell del sistema dentro del editor. Se acopla
 por defecto en la zona inferior y también se puede mostrar u ocultar desde

@@ -40,17 +40,15 @@ proyectos de Visual Studio mantenidos a mano en el repositorio. Las pruebas
 headless viven en `tests/` y el CI en
 `.github/workflows/ci.yml`.
 
-Funshi CLI es un ejecutable aparte, migrado al repositorio
-[FunshiEngineCLI](https://github.com/FunshiEngine/FunshiEngineCLI). No forma parte
-del editor gráfico. El registro estructurado compartido (`funshi_diagnostics_core`)
-sigue viviendo en este repositorio y es consumido por esa CLI independiente.
+`funshi_diagnostics_core` es una biblioteca compartida dentro del motor; no
+depende de ImGui y puede consumirla cualquier frente que hable su formato.
 
 `RuntimeException` conserva la traza de pila y el tipo de excepción. Los límites
 que deciden que un fallo es reportable lo envían a `RegistroDiagnosticos`; el
 constructor de la excepción no registra automáticamente porque algunas
 excepciones se usan como control interno. El registro mantiene una ventana
 acotada en memoria para Estado y persiste eventos en JSON Lines para que una
-invocación separada (Funshi CLI, ahora en repositorio independiente) pueda consultar el mismo historial. La GUI no
+invocación externa al editor pueda consultar el mismo historial. La GUI no
 es propietaria del registro y el módulo de diagnósticos no depende de ImGui.
 Los publicadores aceptan una instancia explícita del registro para pruebas
 aisladas; las llamadas de producción usan la instancia global compartida.
