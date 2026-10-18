@@ -69,7 +69,7 @@ else()
     target_link_libraries(funshi_diagnostics_core PUBLIC ${CMAKE_DL_LIBS})
 endif()
 
-option(BUILD_FUNSHI_CLI "Build the headless Funshi CLI" ON)
+
 
 # El motor se compila como libreria estatica (funshi_engine) y el ejecutable
 # solo aporta el punto de entrada (main.cpp). Asi el engine es reutilizable
@@ -713,33 +713,7 @@ endif() # NOT BUILD_RUNTIME (sin pruebas del bloque editor)
 
 endif()
 
-if(BUILD_FUNSHI_CLI AND NOT BUILD_RUNTIME)
-    add_executable(FunshiCLI
-        ${CMAKE_CURRENT_SOURCE_DIR}/tools/FunshiCLI/main.cpp
-        ${SRC_DIR}/Configuracion/ConfigPersistence.cpp)
-    target_include_directories(FunshiCLI PRIVATE
-        ${SRC_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/External)
-    target_compile_definitions(FunshiCLI PRIVATE
-        FUNSHI_VERSION="${PROJECT_VERSION}")
-    target_link_libraries(FunshiCLI PRIVATE
-        funshi_engine funshi_project_core funshi_diagnostics_core)
 
-    # Prueba headless del CLI: verifica respuesta JSON, eco de id y
-    # apiVersion. El binario del CLI se resuelve junto a este ejecutable
-    # (mismo directorio de build), con .exe en Windows, para funcionar en
-    # local y en CI sin rutas absolutas.
-    add_executable(cli-tests
-        ${CMAKE_CURRENT_SOURCE_DIR}/../tests/CliTests.cpp
-    )
-    target_include_directories(cli-tests PRIVATE
-        ${SRC_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
-    set_target_properties(cli-tests PROPERTIES
-        CXX_STANDARD 17
-        CXX_STANDARD_REQUIRED ON
-        CXX_EXTENSIONS OFF
-    )
-    add_test(NAME cli-tests COMMAND cli-tests)
-endif()
 
 if(NOT BUILD_RUNTIME)
 # --- Pruebas headless del subsistema FileManager (sin pila gráfica) ---------

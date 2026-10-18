@@ -22,12 +22,7 @@ if (-not (Test-Path $exe)) {
 Copy-Item $exe $Dist
 Write-Host "  [ok] FunshiEngineGL.exe"
 
-$cli = Join-Path $BuildDir "FunshiCLI.exe"
-if (-not (Test-Path $cli)) {
-    Write-Error "No existe $cli. Compila el target FunshiCLI."
-}
-Copy-Item $cli $Dist
-Write-Host "  [ok] FunshiCLI.exe"
+
 
 # --- 2. DLLs de vcpkg (glfw3, assimp, bullet, zlib, ...) ---------------------
 $dllsCopiadas = 0

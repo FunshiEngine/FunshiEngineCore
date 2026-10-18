@@ -34,7 +34,7 @@ por arrastre y escribir scripts con la API exacta que expone el motor.
 14. [Scripting C++: referencia completa](#14-scripting-c-referencia-completa)
 15. [Scripting Java (JNI)](#15-scripting-java-jni)
 16. [Hot reload y depuración](#16-hot-reload-y-depuración)
-17. [Funshi CLI](#17-funshi-cli)
+
 18. [Terminal integrada](#18-terminal-integrada)
 
 ---
@@ -1373,7 +1373,7 @@ public void actualizar(long objeto, double deltaTime) {
   (errores de compilacion incluidos), ademas del toolchain detectado.
 - **Errores de carga/compilacion C++ y Java** aparecen en la ventana Estado y
   se publican en el registro estructurado compartido. También se pueden
-  consultar desde `FunshiCLI diagnostics.list` (sección 17). El mensaje
+  consultar desde Funshi CLI (repositorio independiente). El mensaje
   contextual del componente conserva el error de su fuente; corregilo y vuelve
   a cargar el script.
 - Si un callback del script arroja una excepción durante la ejecución, el
@@ -1385,194 +1385,11 @@ public void actualizar(long objeto, double deltaTime) {
 
 ---
 
-## 17. Funshi CLI
+## 17. Herramientas CLI (externo)
 
-Funshi CLI permite ejecutar operaciones del motor con solicitudes JSON sin abrir
-el editor. Ofrece ayuda, versión, creación de proyectos, gestión de proyectos,
-escenas, objetos, assets, scripts y consulta del registro de diagnósticos.
+La Funshi CLI ha sido migrada a un repositorio independiente: [FunshiEngineCLI](https://github.com/FunshiEngine/FunshiEngineCLI).
 
-### Compilar
-
-La CLI se puede compilar sin construir la GUI ni sus dependencias gráficas:
-
-```bash
-cmake -S FunshiEngineGL -B FunshiEngineGL/build-cli \
-  -DBUILD_ENGINE=OFF -DBUILD_FUNSHI_CLI=ON \
-  -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF
-cmake --build FunshiEngineGL/build-cli --target FunshiCLI
-```
-
-El ejecutable queda en `FunshiEngineGL/build-cli/FunshiCLI` en Linux y
-`FunshiEngineGL/build-cli/FunshiCLI.exe` en Windows.
-
-### Ayuda y versión
-
-```bash
-FunshiCLI help
-FunshiCLI version
-```
-
-### Solicitudes JSON
-
-Cada solicitud contiene un `command` y, si el comando necesita parámetros, un
-objeto `args`. Se puede enviar el JSON por stdin o guardarlo en un archivo:
-
-```json
-{
-  "command": "project.create",
-  "args": {
-    "name": "MiProyecto",
-    "dimension": 2
-  }
-}
-```
-
-```bash
-FunshiCLI --request-file crear-proyecto.json
-```
-
-Las respuestas siempre son un objeto JSON con `ok`, `result` y `error`. Cuando
-una operación falla, `error` contiene un código estable y un mensaje:
-
-```json
-{
-  "ok": true,
-  "result": {
-    "name": "MiProyecto",
-    "path": ".../MotorGrafico/Proyects/MiProyecto",
-    "dimension": 2
-  },
-  "error": null
-}
-```
-
-### Comandos disponibles
-
-| `command` | Argumentos | Resultado |
-|---|---|---|
-| `help` | ninguno | Lista los comandos disponibles. |
-| `version` | ninguno | Devuelve la versión del motor. |
-| `project.create` | `args.name` (string, requerido), `args.dimension` (opcional: entero `2`/`3` o string `"2d"`/`"3d"`; default `3`) | Crea el proyecto y devuelve su nombre, ruta y dimensión. |
-| `project.list` | ninguno | Lista todos los proyectos descubiertos con su dimensión y validez. |
-| `project.config.get` | `args.name` (string, requerido) | Devuelve la configuración completa del proyecto (dimensión, gizmo, ventanas, etc.). |
-| `project.src.create` | `args.project` (string), `args.path` (string, ruta relativa dentro de `src/`), `args.file` (bool, opcional), `args.content` (string, opcional) | Crea archivo o directorio dentro de `src<proyecto>/`. |
-| `project.dir.import` | `args.project` (string), `args.source` (string, ruta absoluta origen), `args.path` (string, ruta relativa destino en `src/`), `args.overwrite` (bool, opcional) | Importa carpeta completa recursivamente dentro de `src<proyecto>/`. |
-| `scene.list` | `args.project` (string, requerido) | Lista las escenas (archivos `.db`) del proyecto. |
-| `scene.objects` | `args.project` (string, requerido) | Devuelve la jerarquía completa de objetos de la escena con componentes. |
-| `scene.object.get` | `args.project` (string, requerido), `args.id` (int) **o** `args.tag` (string) | Obtiene un objeto específico por ID o TAG (búsqueda recursiva). |
-| `asset.import` | `args.project` (string), `args.source` (string, ruta absoluta al archivo) | Importa un modelo/textura/audio al proyecto y devuelve su `AssetPath` relativo. |
-| `script.list` | `args.project` (string, requerido) | Lista scripts del proyecto (`.cpp` y `.java` en `src<proyecto>/Scripts/`). |
-| `script.compile` | `args.project` (string, requerido) | Compila **todos** los scripts (C++ y Java) del proyecto vía `ScriptRuntime`. |
-| `diagnostics.list` | `args.limit` (opcional, max 1000), `args.project` (string), `args.module` (string), `args.level` (string: "Depuracion"/"Informacion"/"Advertencia"/"Error"/"Critico"), `args.since` (ISO8601) | Devuelve diagnósticos filtrados con metadatos. |
-| `diagnostics.clear` | ninguno | Borra el archivo de diagnósticos. |
-| `scene.hierarchy` | `args.project` (string, requerido) | Devuelve la jerarquía completa de objetos de la escena, con sus componentes y relaciones. |
-| `project.fs.create` | `args.name` (string, nombre del directorio), `args.project` (string, requerido) | Crea un directorio dentro del proyecto (`<proyecto>/fs/<name>`). |
-| `file.create` | `args.name` (string, nombre del archivo), `args.path` (string, ruta relativa dentro de `fs/`), `args.project` (string, requerido) | Crea un archivo en el directorio `fs/`. |
-
-### Crear proyecto con dimensión
-
-`project.create` acepta `args.dimension`:
-- **Entero**: `2` (2D) o `3` (3D)
-- **String**: `"2d"`, `"2D"`, `"DosD"` o `"3d"`, `"3D"`, `"TresD"`
-- **Default**: `3` (3D) para retrocompatibilidad
-
-Ejemplo 2D:
-```json
-{"command": "project.create", "args": {"name": "MiJuego2D", "dimension": 2}}
-```
-
-### Importar assets
-
-`asset.import` detecta el tipo por extensión y copia al directorio correspondiente:
-| Extensión | Tipo | Destino |
-|---|---|---|
-| `.obj`, `.fbx`, `.gltf`, `.glb`, `.dae`, `.blend` | model | `Modelos/` |
-| `.png`, `.jpg`, `.jpeg`, `.tga`, `.bmp`, `.hdr` | texture | `Texturas/` |
-| `.wav`, `.ogg`, `.mp3`, `.flac` | audio | `src<proyecto>/Sonidos/` |
-
-Ejemplo:
-```json
-{"command": "asset.import", "args": {"project": "MiProyecto", "source": "/tmp/modelo.fbx"}}
-```
-
-Respuesta:
-```json
-{"ok": true, "result": {"path": "Modelos/modelo.fbx", "type": "model", "exists": true}}
-```
-
-### Consultar escenas y objetos
-
-`scene.objects` carga la escena completa y devuelve la jerarquía recursiva con:
-- `id`, `name`, `tag`, `active`
-- `transform` (position/rotation/scale local)
-- `components` (array con `typeName` y propiedades específicas por tipo)
-- `children` (recursivo)
-
-`scene.object.get` permite buscar por `id` o por `tag` (primera coincidencia recursiva).
-
-### Compilar scripts
-
-`script.compile` usa `ScriptRuntime` (BackendCpp + BackendJava) y compila todos los `.cpp` y `.java` en `src<proyecto>/Scripts/`. Devuelve resumen con `compiled`, `failed`, `skipped` y detalles por archivo.
-
-### Diagnósticos con filtros
-
-`diagnostics.list` admite filtros combinados:
-- `limit` (máx 1000, default 100)
-- `project` (filtrar por nombre de proyecto)
-- `module` (filtrar por módulo, ej: "FunshiCLI", "Scenes/SceneSerializer")
-- `level` (filtrar por nivel: "Depuracion", "Informacion", "Advertencia", "Error", "Critico")
-- `since` (timestamp ISO8601, ej: "2026-10-14T00:00:00Z")
-
-### Crear archivos/carpetas en src/
-
-`project.src.create` permite crear estructura dentro de `src<proyecto>/`:
-- `args.file: false` (default) → crea directorio (incluye padres)
-- `args.file: true` → crea archivo con `args.content` opcional
-
-Ejemplo archivo:
-```json
-{"command": "project.src.create", "args": {"project": "MiProyecto", "path": "Scripts/Enemigo.cpp", "file": true, "content": "#include ..."}}
-```
-
-Ejemplo directorio:
-```json
-{"command": "project.src.create", "args": {"project": "MiProyecto", "path": "Scripts/Enemigos"}}
-```
-
-### Importar carpeta completa (recursivo)
-
-`project.dir.import` copia una carpeta externa completa (recursivamente) dentro de `src<proyecto>/`. Útil para importar assets por lotes (sprites, tilesets, etc.).
-
-Argumentos:
-- `args.project` (string, requerido): nombre del proyecto destino.
-- `args.source` (string, requerido): ruta absoluta de la carpeta origen a importar.
-- `args.path` (string, requerido): ruta relativa destino dentro de `src<proyecto>/`.
-- `args.overwrite` (bool, opcional, default `false`): si el destino existe, permite reemplazarlo.
-
-Ejemplo:
-```json
-{"command": "project.dir.import", "args": {"project": "MiProyecto", "source": "/home/usuario/Sprites", "path": "Assets/Sprites"}}
-```
-
-Respuesta:
-```json
-{"ok": true, "result": {"project": "MiProyecto", "source": "/home/usuario/Sprites", "destination": "Assets/Sprites", "filesCopied": 42, "overwrite": false}}
-```
-
-### Códigos de salida
-
-| Código de salida | Significado |
-|---:|---|
-| `0` | Solicitud completada. |
-| `1` | Falló una operación (crear proyecto, importar, compilar, etc.). |
-| `2` | Argumentos o solicitud JSON inválidos, archivo de solicitud inaccesible o comando desconocido. |
-| `3` | La ruta indicada con `--project` / `args.project` no pertenece a un proyecto válido. |
-| `4` | Recurso no encontrado (objeto, asset). |
-| `5` | Fallo de E/S al crear archivo/directorio. |
-
----
-
-## 18. Terminal integrada
+Consulta la documentación del nuevo repositorio para compilar, usar y automatizar operaciones vía API JSON por stdin/stdout.## 18. Terminal integrada
 
 El panel **Terminal** abre una shell del sistema dentro del editor. Se acopla
 por defecto en la zona inferior y también se puede mostrar u ocultar desde

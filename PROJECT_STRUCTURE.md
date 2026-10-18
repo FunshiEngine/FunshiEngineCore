@@ -40,19 +40,17 @@ proyectos de Visual Studio mantenidos a mano en el repositorio. Las pruebas
 headless viven en `tests/` y el CI en
 `.github/workflows/ci.yml`.
 
-Funshi CLI es un ejecutable aparte (`FunshiEngineGL/tools/FunshiCLI`) y no
-inicializa GLFW, OpenGL ni ImGui. Comparte las bibliotecas `funshi_project_core`
-y `funshi_diagnostics_core` con el editor: la primera resuelve ubicaciones fijas
-y ciclo de vida de proyectos; la segunda mantiene el registro JSON Lines que
-consulta tanto la CLI como la ventana Estado. El target se puede compilar sin
-construir el editor con `BUILD_ENGINE=OFF` y `BUILD_FUNSHI_CLI=ON`.
+Funshi CLI es un ejecutable aparte, migrado al repositorio
+[FunshiEngineCLI](https://github.com/FunshiEngine/FunshiEngineCLI). No forma parte
+del editor gráfico. El registro estructurado compartido (`funshi_diagnostics_core`)
+sigue viviendo en este repositorio y es consumido por esa CLI independiente.
 
 `RuntimeException` conserva la traza de pila y el tipo de excepción. Los límites
 que deciden que un fallo es reportable lo envían a `RegistroDiagnosticos`; el
 constructor de la excepción no registra automáticamente porque algunas
 excepciones se usan como control interno. El registro mantiene una ventana
 acotada en memoria para Estado y persiste eventos en JSON Lines para que una
-invocación separada de Funshi CLI pueda consultar el mismo historial. La GUI no
+invocación separada (Funshi CLI, ahora en repositorio independiente) pueda consultar el mismo historial. La GUI no
 es propietaria del registro y el módulo de diagnósticos no depende de ImGui.
 Los publicadores aceptan una instancia explícita del registro para pruebas
 aisladas; las llamadas de producción usan la instancia global compartida.
@@ -137,7 +135,7 @@ FunshiEngineGL/                          ← raíz del repo
     ├── Imagenes/                        ← íconos del explorador (cpp, cubo, file, folder, hpp)
     ├── ImGuizmo/                        ← dependencia integrada (ImGuizmo.cpp/.h, etc.)
     ├── External/nlohmann/json.hpp       ← nlohmann/json vendoriado (EditorConfig)
-    ├── tools/FunshiCLI/main.cpp          ← entrada de Funshi CLI (JSON por stdin/archivo)
+
     └── src/
         ├── main.cpp                     ← composition root: ventanas, callbacks, bucle, config
         ├── EngineTime.h / EngineTime.cpp← delta time y limitador de FPS
