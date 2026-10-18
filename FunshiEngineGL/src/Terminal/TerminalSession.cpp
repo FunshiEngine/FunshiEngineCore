@@ -177,8 +177,10 @@ struct TerminalSession::Impl {
         }
 #endif
         activa.store(false, std::memory_order_release);
+#if !defined(_WIN32)
         lecturaTerminada.store(true, std::memory_order_release);
         condicionLector.notify_all();
+#endif
     }
 
 #if !defined(_WIN32)
@@ -371,7 +373,9 @@ fallo_windows:
     const int banderas = ::fcntl(impl_->terminal, F_GETFL, 0);
     if (banderas >= 0) ::fcntl(impl_->terminal, F_SETFL, banderas | O_NONBLOCK);
     impl_->parada.store(false, std::memory_order_release);
+#if !defined(_WIN32)
     impl_->lecturaTerminada.store(false, std::memory_order_release);
+#endif
     impl_->hijoReapeado.store(false, std::memory_order_release);
     impl_->activa.store(true, std::memory_order_release);
     impl_->hiloLectura = std::thread([this] { impl_->leer(); });
@@ -491,10 +495,7 @@ void TerminalSession::detener() {
 #else
     // Pedir la parada y colgar el grupo de la shell. Si la shell muere, el
     // lector drena la salida final hasta el cierre del esclavo; si la ignora
-    // y sigue emitiendo, la ventana absoluta de gracia lo saca igual. El join
-    // espera con un deadline acotado y, si vence, se escala a SIGKILL antes
-    // de cerrar el maestro: cerrar el maestro nunca es lo que despierta el
-    // read() y el join() nunca cuelga la UI.
+    // y sigue emitiendo, la ventana absoluta de gracia lo saca igual.
     impl_->parada.store(true, std::memory_order_release);
     impl_->limiteParada = std::chrono::steady_clock::now();
     impl_->condicionLector.notify_all();
