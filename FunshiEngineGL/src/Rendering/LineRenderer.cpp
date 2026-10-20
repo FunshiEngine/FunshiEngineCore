@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "LineRenderer.h"
+#include "ContratoRender.h"
 #include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <algorithm>
@@ -31,7 +32,6 @@
 #include "LineBuilder.h"
 #include "ProyeccionCamara.h"
 #include "Shaders/ShaderProgram.h"
-#include "Shaders/ShaderSources.h"
 
 LineRenderer::LineRenderer() = default;
 
@@ -68,11 +68,11 @@ void LineRenderer::setHorizonteVisual(float inicio, float fin) noexcept {
 }
 
 bool LineRenderer::inicializar() {
-    if (shader_) return true;
+    if (shader_) return shader_->isValid();
     if (!Rendering::Backend::activeBackend().init()) return false;
     try {
         shader_ = std::make_unique<ShaderProgram>(
-            ShaderProgram::fromSource(kLineVertexShader, kLineFragmentShader));
+            ShaderProgram::create(Rendering::Contrato::ShaderKind::Lineas));
     } catch (const std::exception& e) {
         registrarExcepcionDiagnostica("Rendering/LineRenderer", e,
                                       NivelDiagnostico::Error);
@@ -80,7 +80,7 @@ bool LineRenderer::inicializar() {
                   << '\n';
         shader_.reset();
     }
-    return shader_ != nullptr;
+    return shader_ != nullptr && shader_->isValid();
 }
 
 bool LineRenderer::preparar(const float model[16], float anchoPx) {
@@ -92,18 +92,18 @@ bool LineRenderer::preparar(const float model[16], float anchoPx) {
     if (viewportWidth_ <= 0 || viewportHeight_ <= 0) return false;
 
     shader_->use();
-    shader_->setMat4("uModel", model ? glm::make_mat4(model) : glm::mat4(1.0f));
-    shader_->setMat4("uView", view_);
-    shader_->setMat4("uProjection", projection_);
+    shader_->setMat4(Rendering::Contrato::Uniforme::kModel, model ? glm::make_mat4(model) : glm::mat4(1.0f));
+    shader_->setMat4(Rendering::Contrato::Uniforme::kView, view_);
+    shader_->setMat4(Rendering::Contrato::Uniforme::kProjection, projection_);
     const float viewport[4] = {static_cast<float>(viewportWidth_),
                                static_cast<float>(viewportHeight_), 0.0f, 0.0f};
-    shader_->setVec4("uViewport", viewport);
-    shader_->setFloat("uWidth", anchoPx > 0.0f ? anchoPx : 1.0f);
-    shader_->setFloat("uNear", ProyeccionCamara::nearDesdeProyeccion(
+    shader_->setVec4(Rendering::Contrato::Uniforme::kViewport, viewport);
+    shader_->setFloat(Rendering::Contrato::Uniforme::kWidth, anchoPx > 0.0f ? anchoPx : 1.0f);
+    shader_->setFloat(Rendering::Contrato::Uniforme::kNear, ProyeccionCamara::nearDesdeProyeccion(
                                      glm::value_ptr(projection_)));
-    shader_->setVec3("uCameraPosition", posicionCamara_);
-    shader_->setFloat("uDistanceFadeStart", horizonteInicio_);
-    shader_->setFloat("uDistanceFadeEnd", horizonteFin_);
+    shader_->setVec3(Rendering::Contrato::Uniforme::kCameraPosition, posicionCamara_);
+    shader_->setFloat(Rendering::Contrato::Uniforme::kDistanceFadeStart, horizonteInicio_);
+    shader_->setFloat(Rendering::Contrato::Uniforme::kDistanceFadeEnd, horizonteFin_);
     return true;
 }
 

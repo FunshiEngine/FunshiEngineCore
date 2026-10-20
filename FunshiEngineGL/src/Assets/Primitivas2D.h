@@ -21,7 +21,7 @@
 
 #include "Mesh.h"
 
-// Primitivas geometricas 2D en CPU, independientes de OpenGL: son la "malla"
+// Primitivas geometricas 2D en CPU, independientes de la pila grafica: son la "malla"
 // base que el renderer de sprites sube a GPU una sola vez. Viven como Mesh para
 // reutilizar el mismo camino que MeshRenderer (AssetManager/Assimp generan Mesh;
 // esto genera una sin cargar archivo) y para poder probarse en los targets

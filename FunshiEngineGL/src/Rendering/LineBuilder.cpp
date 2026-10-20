@@ -26,7 +26,7 @@ void LineBuilder::agregarQuad(const float a[3], const float b[3],
                               const float rgbaA[4], const float rgbaB[4]) {
     // Los 6 vertices del quad, como (avance, lado). Los dos triangulos son
     // (0,-1)(0,+1)(1,+1) y (0,-1)(1,+1)(1,-1): cubren el rectangulo a->b sin
-    // compartir vertices, asi que se dibuja con glDrawArrays(GL_TRIANGLES).
+    // compartir vertices, asi que se dibuja como una lista de triangulos.
     static const float kLados[6] = {-1.f, 1.f, 1.f, -1.f, 1.f, -1.f};
     static const float kAvances[6] = {0.f, 0.f, 1.f, 0.f, 1.f, 1.f};
 

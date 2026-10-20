@@ -24,13 +24,14 @@
 // Jerarquia de errores del pipeline de shaders. El patron es el mismo que en
 // AssetException: una excepcion explicita (con stack trace) en lugar de
 // "std::cerr + continuar con estado roto". Quien construye un ShaderProgram
-// sabre por que fallo (stage + log del driver) si el driver no soporta GLSL.
+// sabre por que fallo (etapa + log del compilador) si el backend no puede
+// compilar los shaders.
 class ShaderUnavailableException : public RuntimeException {
 public:
     ShaderUnavailableException()
-        : RuntimeException("OpenGL moderna no disponible: no se pudieron "
-                           "cargar las funciones de shaders/VAO (segun "
-                           "GLFuncs).", "ShaderUnavailableException") {}
+        : RuntimeException("El backend grafico no esta disponible: no se "
+                           "pudieron preparar los shaders.",
+                           "ShaderUnavailableException") {}
 };
 
 class ShaderCompileException : public RuntimeException {

@@ -25,7 +25,8 @@
 #define _HAS_STD_BYTE 0
 #endif
 
-// Solo el tipo GLFWwindow; el contexto/estado GL vive en el backend.
+// Solo el tipo GLFWwindow; la ventana no tiene contexto grafico: la superficie
+// la crea el backend de render que se instale.
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 

@@ -47,8 +47,8 @@ public:
                 OrquestadorEstadoGUI* orquestador);
 
     // Registra las callbacks de GLFW. OJO: se debe llamar ANTES de
-    // ImGui_ImplGlfw_InitForOpenGL(window, true): el backend de ImGui guarda
-    // estas como "previas" y las encadena, manteniendo el orden actual.
+    // inicializar el backend de ImGui (InitForOther): el backend de ImGui
+    // guarda estas como "previas" y las encadena, manteniendo el orden actual.
     void registrarCallbacks(GLFWwindow* window);
 
     // Movimiento continuo por frame (maquina de estado de teclas): combina las

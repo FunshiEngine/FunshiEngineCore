@@ -23,7 +23,7 @@
 //   - round-trip binario del componente.
 //
 // Patron de autoria (ver AGENTS.md): CHECK definido en este archivo, sin
-// dependencias de GUI/OpenGL, y salida final "OK/FALLOS: N comprobaciones".
+// dependencias de GUI ni de la pila grafica, y salida final "OK/FALLOS: N comprobaciones".
 
 #include <cmath>
 #include <cstdint>

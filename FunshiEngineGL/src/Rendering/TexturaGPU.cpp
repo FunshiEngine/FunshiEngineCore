@@ -16,11 +16,11 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-#include "TextureGL.h"
+#include "TexturaGPU.h"
 
-TextureGL::~TextureGL() { destroy(); }
+TexturaGPU::~TexturaGPU() { destroy(); }
 
-void TextureGL::destroy() {
+void TexturaGPU::destroy() {
     if (texture_ != Rendering::Backend::kInvalidHandle) {
         Rendering::Backend::activeBackend().destroyTexture2D(texture_);
         texture_ = Rendering::Backend::kInvalidHandle;
@@ -28,7 +28,7 @@ void TextureGL::destroy() {
     width_ = height_ = 0;
 }
 
-TextureGL::TextureGL(TextureGL&& other) noexcept {
+TexturaGPU::TexturaGPU(TexturaGPU&& other) noexcept {
     texture_ = other.texture_;
     width_ = other.width_;
     height_ = other.height_;
@@ -36,7 +36,7 @@ TextureGL::TextureGL(TextureGL&& other) noexcept {
     other.width_ = other.height_ = 0;
 }
 
-TextureGL& TextureGL::operator=(TextureGL&& other) noexcept {
+TexturaGPU& TexturaGPU::operator=(TexturaGPU&& other) noexcept {
     if (this != &other) {
         destroy();
         texture_ = other.texture_;
@@ -48,7 +48,7 @@ TextureGL& TextureGL::operator=(TextureGL&& other) noexcept {
     return *this;
 }
 
-void TextureGL::upload(const Image& image) {
+void TexturaGPU::upload(const Image& image) {
     if (image.isEmpty() || image.width <= 0 || image.height <= 0) return;
 
     destroy();
@@ -65,7 +65,7 @@ void TextureGL::upload(const Image& image) {
     height_ = image.height;
 }
 
-void TextureGL::bindUnit(int unit) const {
+void TexturaGPU::bindUnit(int unit) const {
     if (texture_ == Rendering::Backend::kInvalidHandle) return;
     Rendering::Backend::activeBackend().bindTexture2D(texture_, unit);
 }

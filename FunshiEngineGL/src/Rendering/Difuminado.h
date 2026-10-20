@@ -35,7 +35,7 @@
 // de derivar, para que un valor corrupto en la configuracion no pueda dejar la
 // grilla sin horizonte ni producir una division por cero en la curva.
 //
-// Modulo CPU puro (nada de OpenGL ni glm) para poder ejercitarse en los
+// Modulo CPU puro (nada de pila grafica ni glm) para poder ejercitarse en los
 // targets headless, como LineBuilder y GuiaEje.
 struct Difuminado {
     // Fraccion del radio que queda completamente opaca (40 de 150 en el

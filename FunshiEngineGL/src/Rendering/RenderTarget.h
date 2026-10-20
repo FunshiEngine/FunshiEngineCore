@@ -22,9 +22,10 @@
 #include "Backend/IRenderBackend.h"
 
 // Render-to-texture para las vistas previas de camara: wrapper RAII de un
-// handle opaco del backend (FBO en OpenGL, pas-swapchain en Vulkan). No ve GL;
-// la creacion del FBO y la carga de funciones (glfwGetProcAddress) vive en
-// OpenGL3Backend, asi funciona igual en Linux y Windows sin GLAD/glew externo.
+// handle opaco del backend (un framebuffer en una API, una textura con destino
+// de render en otra). No ve la API grafica: la creacion del destino de render
+// vive en el backend, asi funciona igual en Linux y Windows sin cargar nada a
+// mano.
 class RenderTarget {
 private:
     Rendering::Backend::Handle target_ = Rendering::Backend::kInvalidHandle;

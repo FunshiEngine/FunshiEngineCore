@@ -33,7 +33,7 @@
 // la recta va hasta el horizonte y se difumina como la grilla, y el gizmo que
 // se dibuja encima trae solo la flecha de ese eje para arrastrar.
 //
-// La geometria es CPU pura a proposito (nada de OpenGL ni glm, solo la matriz
+// La geometria es CPU pura a proposito (nada de pila grafica ni glm, solo la matriz
 // global como array de floats), igual que LineBuilder, para poder ejercitarse
 // en los targets headless (tests/RenderingTests.cpp). El dibujado lo hace la
 // capa de Rendering con LineBuilder/LineBatch.

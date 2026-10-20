@@ -24,7 +24,7 @@
 #include "Backend/IRenderBackend.h"
 
 // Representacion GPU de una Mesh CPU: no conoce la API grafica concreta,
-// posee un handle opaco al backend (VAO/VBO en OpenGL3, buffers en Vulkan) con
+// posee un handle opaco al backend (el objeto de buffers que use la API) con
 // RAII. La malla Mesh viene de AssetManager (compartida); el MeshGPU es un
 // recurso del renderer y se cachea por identidad de la malla para no re-subir
 // geometria redundante. Atributos: 0 = posicion (vec3), 1 = normal (vec3),

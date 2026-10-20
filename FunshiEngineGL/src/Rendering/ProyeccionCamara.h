@@ -22,13 +22,13 @@
 #include <cmath>
 
 // Consultas sobre una matriz de proyeccion 4x4 guardada en un float[16] en
-// orden column-major (el de glm/OpenGL). Header-only y puro: no depende de glm
+// orden column-major (el de glm). Header-only y puro: no depende de glm
 // ni de la camara, de modo que el renderer de lineas y cualquier consumidor
 // pueden clasificar la proyeccion sin arrastrar las clases del motor.
 namespace ProyeccionCamara {
 
 // Una proyeccion es ortografica cuando la ultima fila del bloque 3x4 no lleva
-// la componente en perspectiva. En la perspectiva de glm/OpenGL el elemento
+// la componente en perspectiva. En la perspectiva de glm el elemento
 // (fila 2, columna 3) vale -1 (m[2][3] -> indice 11 en column-major); en la
 // ortografica vale 0, porque el rayo de vista no converge.
 inline bool esOrtografica(const float p[16]) {

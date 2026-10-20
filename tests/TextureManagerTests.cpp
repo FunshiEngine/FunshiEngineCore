@@ -18,7 +18,7 @@
 */
 // Pruebas headless del cache de texturas (TextureManager): imagen compartida,
 // decode unico por path, fallos y eviccion, con un loader artificial. Sin la
-// pila grafica (el upload a GPU TextureGL no vive aqui) ni stb_image. Solo std
+// pila grafica (el upload a GPU TexturaGPU no vive aqui) ni stb_image. Solo std
 // C++17.
 
 #include <iostream>

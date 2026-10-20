@@ -60,11 +60,10 @@ void rotarAdelante(float anguloGrados, const float* eje, float out[3]) {
     out[2] = v[2] * c + cross[2] * s + k[2] * dot * (1.f - c);
 }
 
-// Extrae los datos de una luz a un LightData (semantica actual de GL) a partir
-// del componente Light y del Transform global del objeto que lo lleva. Es la
-// unica fuente de la derivacion posicion/direccion: la usan tanto el backend
-// (parametrizar GL_LIGHT0..7) como el shader (uniforms), asi las dos pasadas
-// iluminan igual.
+// Extrae los datos de una luz a un LightData a partir del componente Light y
+// del Transform global del objeto que lo lleva. Es la unica fuente de la
+// derivacion posicion/direccion: la usan tanto el renderer de la escena como
+// el shader (uniforms), asi las dos pasadas iluminan igual.
 void extraerDatosLuz(Light* light, Transform* transform, LightData& out) {
     const LightType type = light->getType();
     out.type = static_cast<int>(type);

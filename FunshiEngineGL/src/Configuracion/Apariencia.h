@@ -24,7 +24,7 @@
 // ============================================================================
 // Perfil de apariencia del editor.
 //
-// Es un tipo de DATOS PURO (sin ImGui/OpenGL) para que la capa de
+// Es un tipo de DATOS PURO (sin ImGui ni pila grafica) para que la capa de
 // configuracion (EditorConfig) pueda persistirlo y la capa de presentacion
 // (GUI/Tema/TemaEditor) se encargue de aplicarlo. Las funciones de
 // resolucion (fondo/grilla) viven aca porque son logica de color pura y las

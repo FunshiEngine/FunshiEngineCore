@@ -45,7 +45,7 @@ struct CapaTilemap {
 // estilo Tiled), una o varias capas de ids y expone el pintado por celda. La
 // geometria de las capas visibles se hornea en una unica malla (un draw call por
 // tileset) que consume el SceneRenderer, y las capas con colision alimentan al
-// backend de fisica. El componente no depende de OpenGL ni de Bullet: solo
+// backend de fisica. El componente no depende de la pila grafica ni de Bullet: solo
 // describe datos y geometria, de modo que los tests headless lo ejerciten.
 class Tilemap : public Component {
 public:

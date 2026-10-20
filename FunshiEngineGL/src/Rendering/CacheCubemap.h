@@ -30,7 +30,7 @@
 // textura que esta viva, asi que la regla de invalidacion vive aca y se puede
 // probar sin GPU ni imagenes.
 //
-// Es CPU puro a proposito (sin OpenGL ni stb_image), igual que Cielo o
+// Es CPU puro a proposito (sin pila grafica ni stb_image), igual que Cielo o
 // Difuminado, para correr en los targets headless.
 namespace CacheCubemap {
 

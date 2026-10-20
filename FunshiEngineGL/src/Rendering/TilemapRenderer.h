@@ -28,7 +28,7 @@
 #include "Backend/IRenderBackend.h"
 
 class ShaderProgram;
-class TextureGL;
+class TexturaGPU;
 class TextureManager;
 struct Mesh;
 
@@ -91,7 +91,7 @@ private:
     bool shaderFallado_ = false;
     TextureManager* textureManager_ = nullptr;
     std::unordered_map<const void*, MallaCacheada> mallas_;
-    std::unordered_map<const void*, std::unique_ptr<TextureGL>> gpuTexturas_;
+    std::unordered_map<const void*, std::unique_ptr<TexturaGPU>> gpuTexturas_;
     std::unordered_set<std::string> texturasFallidas_;
 };
 

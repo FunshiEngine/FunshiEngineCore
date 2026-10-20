@@ -1714,7 +1714,7 @@ void elInspectorDibujaUnFrameSinArrastre() {
 
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    // Mismo contrato que el backend OpenGL del motor: el atlas de fuentes lo
+    // Mismo contrato que el backend de ImGui del motor: el atlas de fuentes lo
     // construye ImGui en NewFrame() (sin backend, TexIsBuilt arranca en falso y
     // ImFontAtlasUpdateNewFrame() desreferencia un Builder nulo).
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;

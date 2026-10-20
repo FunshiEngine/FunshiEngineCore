@@ -47,7 +47,7 @@
 // el color de cada extremo para conservar los difuminados por vertice (la
 // grilla se funde en el horizonte).
 //
-// Es CPU puro a proposito: no incluye OpenGL ni glm, asi se puede probar en los
+// Es CPU puro a proposito: no incluye la pila grafica ni glm, asi se puede probar en los
 // targets headless (tests/RenderingTests.cpp) igual que Mesh::computeTangents.
 class LineBuilder {
 public:

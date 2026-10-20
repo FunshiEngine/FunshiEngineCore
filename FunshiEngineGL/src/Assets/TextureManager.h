@@ -39,7 +39,7 @@ public:
 // Registro central de texturas (Flyweight/Registry) en CPU, espejo de
 // AssetManager para mallas: pedir el mismo path devuelve la MISMA imagen
 // compartida (el decode con stb_image se hace una sola vez por archivo). No
-// expone OpenGL: el upload a GPU (TextureGL) vive en el renderer, que cachea
+// expone la pila grafica: el upload a GPU (TexturaGPU) vive en el renderer, que cachea
 // por identidad de la imagen al igual que MeshGPU cachea por identidad de Mesh.
 class TextureManager {
 public:

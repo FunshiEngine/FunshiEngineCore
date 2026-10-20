@@ -27,7 +27,7 @@
 #include "Backend/IRenderBackend.h"
 
 class ShaderProgram;
-class TextureGL;
+class TexturaGPU;
 class TextureManager;
 
 namespace Rendering {
@@ -83,7 +83,7 @@ private:
     bool shaderFallado_ = false;
     Rendering::Backend::Handle quadMalla_ = Rendering::Backend::kInvalidHandle;
     TextureManager* textureManager_ = nullptr;
-    std::unordered_map<const void*, std::unique_ptr<TextureGL>> gpuTexturas_;
+    std::unordered_map<const void*, std::unique_ptr<TexturaGPU>> gpuTexturas_;
     std::unordered_set<std::string> texturasFallidas_;
 };
 

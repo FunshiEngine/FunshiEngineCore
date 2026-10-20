@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,36 +16,38 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-#ifndef OPENGL3BACKEND_H
-#define OPENGL3BACKEND_H
+#ifndef BACKENDNULO_H
+#define BACKENDNULO_H
 
-#include <unordered_map>
-#include <utility>
-
-#include "GLFuncs.h"
 #include "IRenderBackend.h"
 
 namespace Rendering {
 namespace Backend {
 
-// Backend concreto sobre OpenGL 3.3 core (todo lo moderno se carga por puntero
-// con GLFuncs). Implementa IRenderBackend: los recursos GL vivos se traducen a los
-// GLuint reales. Ya no expone superficie fixed-function: no hay matrices de
-// compatibilidad, ni stack de matrices, ni materiales, ni primitivas
-// inmediatas. Posee el unico acceso a GLFuncs (funciones modernas) y a los FBO;
-// nadie mas del engine llama a OpenGL directamente a traves de la capa de
-// entidades.
-class OpenGL3Backend : public IRenderBackend {
+// Implementacion en blanco del contrato de backend grafico.
+//
+// El motor define que necesita y como se llama cada recurso, pero no sabe
+// como se dibuja: eso es lo que este repositorio deja por implementar. Este
+// backend cumple el contrato sin dibujar nada, de modo que el motor arranca,
+// la escena se recorre y la suite de pruebas corre sin que haya una API
+// grafica instalada.
+//
+// No es un stub que devuelve cero sin mas: init() devuelve true (el motor
+// arranca), available() devuelve false (no hay nada que dibujar) y cada
+// creacion devuelve el handle invalido, de modo que los renderers detectan
+// que no hay pipeline y omiten la pasada en vez de dibujar con recursos
+// inexistentes.
+class BackendNulo : public IRenderBackend {
 public:
     bool init() override;
-    bool available() const override { return GLFuncs::available(); }
+    bool available() const override;
 
-    // --- Malla GPU ---
+    // Malla GPU.
     Handle createMesh(const MeshData& data) override;
     void destroyMesh(Handle mesh) override;
     void drawMesh(Handle mesh, unsigned int indexCount) override;
 
-    // --- Batch de lineas ---
+    // Batch de lineas.
     Handle createLineBatch(const float* vertices,
                            std::size_t vertexCount) override;
     void destroyLineBatch(Handle batch) override;
@@ -53,20 +55,17 @@ public:
                          std::size_t vertexCount) override;
     void drawLineBatch(Handle batch, unsigned int vertexCount) override;
 
-    // --- Textura 2D ---
+    // Texturas.
     Handle createTexture2D(const Image2D& image) override;
     void destroyTexture2D(Handle texture) override;
     void bindTexture2D(Handle texture, int unit) override;
     void updateTexture2D(Handle texture, const Image2D& image) override;
-
-    // --- Textura Cubemap ---
     Handle createTextureCube(const ImageCube& image) override;
     void destroyTextureCube(Handle texture) override;
     void bindTextureCube(Handle texture, int unit) override;
 
-    // --- Programa ---
-    Handle createProgram(const char* vertexSource,
-                         const char* fragmentSource) override;
+    // Programas de shaders.
+    Handle createProgram(Contrato::ShaderKind kind) override;
     void destroyProgram(Handle program) override;
     void useProgram(Handle program) override;
     int uniformLocation(Handle program, const char* name) override;
@@ -77,7 +76,7 @@ public:
     void setUniformFloat(int location, float value) override;
     void setUniformInt(int location, int value) override;
 
-    // --- Render target ---
+    // Render targets.
     Handle createRenderTarget(int width, int height) override;
     void destroyRenderTarget(Handle target) override;
     void bindRenderTarget(Handle target) override;
@@ -85,49 +84,17 @@ public:
     Handle renderTargetColorTexture(Handle target) const override;
     void* imguiTextureId(Handle texture) const override;
 
-    // --- Estado de la pasada y del framebuffer ---
+    // Estado de la pasada.
     void setViewport(int x, int y, int width, int height) override;
     void clearScreen(const float color[3]) override;
     void applyBaseState() override;
     void setClearColor(const float color[3]) override;
     const char* diagnosticoGPU() const override;
     void setBlendEnabled(bool enabled) override;
-
-    // --- Estado de profundidad (para el cielo: depth test on + depth mask off)
     void setDepthTestEnabled(bool enabled) override;
     void setDepthMask(bool enabled) override;
     void setDepthFunc(DepthFunc func) override;
-
-    // --- Pasada a pantalla completa (sin atributos) ---
     void drawFullscreenTriangle() override;
-
-private:
-    struct GpuMesh { unsigned int vao; unsigned int buffers[6]; };
-    // El batch de lineas es un unico VBO interleaved (el layout lo fija
-    // LineBuilder): VAO + el VBO, sin EBO porque la expansion a quads no
-    // comparte vertices.
-    struct GpuLineBatch { unsigned int vao; unsigned int vbo; };
-    struct GpuTarget {
-        unsigned int fbo;
-        unsigned int rbo;
-        unsigned int colorTex;
-    };
-
-    bool fboFuncionesCargadas();
-    std::unordered_map<Handle, GpuMesh> meshes_;
-    std::unordered_map<Handle, GpuLineBatch> lineBatches_;
-    std::unordered_map<Handle, GpuTarget> targets_;
-    // Dimensiones vigentes de cada textura 2D creada: updateTexture2D las
-    // consulta para decidir entre glTexSubImage2D (mismo tamano) y reasignar
-    // (tamano distinto). Sin este registro no se puede saber el tamano actual
-    // sin preguntarselo a GL.
-    std::unordered_map<Handle, std::pair<int, int>> tamanosTextura2D_;
-    bool fboCargadas_ = false;
-    // VAO sin atributos de la pasada a pantalla completa (cielo degradado): se
-    // crea en el primer dibujo y se reusa. Vive hasta que termina el proceso,
-    // igual que el resto de los recursos GPU del backend (no hay apagado de GL
-    // con contexto vivo despues del bucle principal).
-    unsigned int vaoPantallaCompleta_ = 0;
 };
 
 } // namespace Backend

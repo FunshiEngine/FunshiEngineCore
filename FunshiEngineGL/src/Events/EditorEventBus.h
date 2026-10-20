@@ -35,7 +35,7 @@ class GameObject;
 // lo que produce; ninguna se pasa un puntero a otra (patron Mediator/Observer
 // que el proyecto ya usa de forma puntual, ahora declarado para todas las GUI).
 //
-// Headless (sin ImGui/OpenGL): igual de testeable que EditorConfig y que el
+// Headless (sin ImGui ni pila grafica): igual de testeable que EditorConfig y que el
 // orquestador de estados. El dueño del bus es GUIManager (su registro central
 // de ventanas); menu, escena y main publican/suscriben sin conocerse.
 enum class EditorEventType {

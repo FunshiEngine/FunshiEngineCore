@@ -26,7 +26,7 @@
 
 // Utilidades de rutas de assets, separadas del resto del proyecto para
 // centralizar la resolucion de recursos (pendiente "portabilidad de rutas").
-// Header-only: no depende de OpenGL ni de la pila grafica, por eso los tests
+// Header-only: no depende de la pila grafica, por eso los tests
 // headless pueden ejercitarla en cualquier plataforma.
 namespace AssetPath {
 

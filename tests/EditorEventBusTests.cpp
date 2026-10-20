@@ -18,7 +18,7 @@
 */
 // Pruebas headless de EditorEventBus (el canal tipado de GUI interna):
 // subscribe/publish/unsubscribe con payload declarativo y varios suscriptores.
-// Sin pila grafica: solo std C++17 (EditoreventBus no toca ImGui/OpenGL).
+// Sin pila grafica: solo std C++17 (EditoreventBus no toca ImGui ni la API grafica).
 
 #include <iostream>
 #include <string>

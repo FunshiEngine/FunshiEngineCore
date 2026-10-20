@@ -367,20 +367,18 @@ if(BUILD_ENGINE)
         PUBLIC FUNSHI_ENGINE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
 # 1. Configuración de GLFW
+#
+# GLFW es la capa de ventana e input: no es una API gráfica. El motor crea la
+# ventana sin contexto gráfico (GLFW_NO_API) y deja que el backend activo se
+# haga cargo de la superficie, así que GLFW es la única dependencia de bajo
+# nivel que el core necesita.
 find_package(glfw3 REQUIRED)
 target_link_libraries(funshi_engine PRIVATE glfw)
 
-# 2. Configuración de OpenGL. El engine pide un contexto 3.3 core en Ventana.cpp
-# y usa las funciones modernas por puntero (GLFuncs), por lo que no se enlaza GLU:
-# no hay glu* que usar tras eliminar el modo inmediato.
-find_package(OpenGL REQUIRED)
-
-# Primero enlazamos OpenGL básico
-if(TARGET OpenGL::OpenGL)
-    target_link_libraries(funshi_engine PRIVATE OpenGL::OpenGL)
-else()
-    target_link_libraries(funshi_engine PRIVATE ${OPENGL_LIBRARIES})
-endif()
+# El core no implementa ninguna API gráfica: el backend por defecto es el nulo
+# (Rendering/Backend/BackendNulo). Un repositorio que implemente una API
+# gráfica instala su backend con Backend::instalarBackend() y compila su
+# propio .cpp; aquí no hay nada que enlazar porque no hay driver que usar.
 
 # Bullet Physics
 find_package(Bullet REQUIRED)
@@ -439,7 +437,7 @@ target_link_libraries(funshi_engine PUBLIC funshi_sanitizers)
 if(WIN32)
     # dbghelp: CapturaBackTrace/SymFromAddr/SymInitialize (RuntimeException).
     # En MinGW los #pragma comment(lib) de MSVC se ignoran, hay que enlazarla.
-    target_link_libraries(funshi_engine PRIVATE opengl32 dbghelp)
+    target_link_libraries(funshi_engine PRIVATE dbghelp)
     # Evitar conflicto std::byte (C++17) vs typedef byte en headers Windows (rpcndr.h, etc.)
     target_compile_definitions(funshi_engine PRIVATE _HAS_STD_BYTE=0)
 endif()
@@ -618,6 +616,31 @@ add_test(NAME tilemap-tests COMMAND tilemap-tests)
 if(WIN32)
     target_link_libraries(tilemap-tests PRIVATE dbghelp)
     target_compile_definitions(tilemap-tests PRIVATE _HAS_STD_BYTE=0)
+endif()
+
+# --- Contrato de render (headless) -------------------------------------------
+# La tabla de uniformes que cada tipo de programa tiene que exponer, el backend
+# nulo que cumple el contrato entero sin dibujar, y el mecanismo de instalacion
+# del backend. No hay GPU: el backend de mentira solo registra las llamadas, asi
+# que el resultado no depende del driver.
+add_executable(contrato-render-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ContratoRenderTests.cpp
+)
+target_include_directories(contrato-render-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+)
+target_link_libraries(contrato-render-tests PRIVATE funshi_engine)
+set_target_properties(contrato-render-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME contrato-render-tests COMMAND contrato-render-tests)
+
+if(WIN32)
+    target_link_libraries(contrato-render-tests PRIVATE dbghelp)
+    target_compile_definitions(contrato-render-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
 # --- Pruebas headless del sistema de Prefabs (round-trip y validacion) -------
@@ -1004,7 +1027,7 @@ add_test(NAME estructuras-tests COMMAND estructuras-tests)
 # parte CPU (LineBuilder, la expansion de cada segmento al quad que dibuja el
 # shader de lineas; el calculo de la recta de la guia de eje; el difuminado del
 # piso; los colores efectivos del cielo degradado y la clave de identidad del
-# cubemap del Skybox). No entra OpenGL ni glm a proposito, asi el layout del VAO,
+# cubemap del Skybox). No entra la pila grafica ni glm a proposito, asi el layout del VAO,
 # la cuenta de vertices y los extremos de la guia se pueden verificar sin pila
 # grafica.
 add_executable(rendering-tests

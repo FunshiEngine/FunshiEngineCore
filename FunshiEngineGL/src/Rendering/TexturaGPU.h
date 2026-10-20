@@ -16,8 +16,8 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-#ifndef TEXTUREGL_H
-#define TEXTUREGL_H
+#ifndef TEXTURAGPU_H
+#define TEXTURAGPU_H
 
 #include "../Assets/Image.h"
 #include "Backend/IRenderBackend.h"
@@ -27,7 +27,7 @@
 // compartida; el renderer la cachea por identidad de la imagen (al igual que
 // MeshGPU se cachea por identidad de Mesh) para no re-subir pixels redundantes
 // en cada frame.
-class TextureGL {
+class TexturaGPU {
 private:
     Rendering::Backend::Handle texture_ = Rendering::Backend::kInvalidHandle;
     int width_ = 0;
@@ -36,12 +36,12 @@ private:
     void destroy();
 
 public:
-    TextureGL() = default;
-    ~TextureGL();
-    TextureGL(const TextureGL&) = delete;
-    TextureGL& operator=(const TextureGL&) = delete;
-    TextureGL(TextureGL&& other) noexcept;
-    TextureGL& operator=(TextureGL&& other) noexcept;
+    TexturaGPU() = default;
+    ~TexturaGPU();
+    TexturaGPU(const TexturaGPU&) = delete;
+    TexturaGPU& operator=(const TexturaGPU&) = delete;
+    TexturaGPU(TexturaGPU&& other) noexcept;
+    TexturaGPU& operator=(TexturaGPU&& other) noexcept;
 
     // Sube la imagen CPU a GPU (reemplaza cualquier textura previa).
     void upload(const Image& image);
@@ -50,7 +50,8 @@ public:
     int getWidth() const { return width_; }
     int getHeight() const { return height_; }
 
-    // Activa la unidad GL_TEXTURE0 + unit y la bindea como objetivo de sampleo.
+    // Activa la unidad de texturizado 'unit' y la deja bindeada como objetivo
+    // de sampleo.
     void bindUnit(int unit) const;
 };
 
