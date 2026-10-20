@@ -104,7 +104,7 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 | **R9 — Texto estructurado con seek en binario** | Si el lector hace `seekg(tellg())` para releer (look-ahead/peek), abrir en **binario** y normalizar las líneas (recortar `\r`): en modo texto el CRT de Windows traduce CRLF y los offsets dejan de ser bytes exactos | `SceneSerializer::load()` + `getlineLimpio()` (ver §7.4) |
 | **R10 — La bandera de encoding viaja junto al dato** | Si una API acepta un bloque/cadena cuyo encoding depende de una bandera (`CREATE_UNICODE_ENVIRONMENT`), la bandera se decide **dentro** de la función que recibe el dato, nunca en el llamador | `Proceso::lanzar()` (ver §8.4) |
 | **R11 — La frescura del artefacto manda, no el estado del que pide** | Antes de reescribir una salida, decidir por los tiempos de **archivo** (existe y no es más viejo que su fuente); una `.dll` cargada en el proceso no se puede reescribir en Windows | `BackendCpp::compilarYCargar()` (ver §9.4) |
-| **R12 — El que dibuja posee su VAO** | En un contexto core todo `glDraw*` necesita un VAO ligado, incluso si la pasada no lee atributos (`gl_VertexID`); el VAO lo crea y lo liga el backend, no el llamador | `OpenGL3Backend::drawFullscreenTriangle()` (ver §10.4) |
+| **R12 — El que dibuja posee el estado de la pasada** | Toda pasada sin atributos igual necesita el estado que la API exige para dibujar (en un contexto core, un VAO ligado; en una API con pipelines, el pipeline): ese estado lo prepara y posee el backend, no el llamador | `IRenderBackend::drawFullscreenTriangle()` (ver §10.4) |
 | **R13 — Toda carpeta del motor en la raíz de datos es un nombre reservado** | Una migración de compatibilidad que mueve "lo que haya en la raíz" se lleva también las carpetas del motor; hay que declararlas reservadas al crear la carpeta, no después | `ProjectPaths::esReservado()` (ver §11.4) |
 | **R14 — Un valor horneado es una pista, no una verdad** | Lo que CMake hornea (rutas de compilador, de cabeceras, de toolchain) es de la máquina que compiló: comprobar que existe antes de usarlo, dejar un override por entorno que gane, buscar la herramienta en la máquina y degradar a un nombre que resuelva el PATH | `BackendCpp::compilador()`, `vcvars64EnRaices()` (ver §12.4) |
 | **R15 — El separador nativo manda al comparar rutas** | Quien arma una ruta con `std::filesystem` (o con `PATH_SEP`) produce el separador de su plataforma: en Windows, `base / "logs"` es `\logs`, no `/logs`. Un test que compare contra un literal con `/` solo pasa en Linux; comparar contra `(fs::path(base) / ...).string()` o rehacer el cálculo con la misma herramienta que el código bajo prueba | `tests/EditorConfigTests.cpp` (bloque `RutasLog::candidatas` y `relativizarRuta`) |
@@ -505,7 +505,7 @@ Checklist de mitigación:
 
 ---
 
-## 10. Sexto concepto: **Un contexto Core Profile rechaza todo dibujo sin VAO ligado**
+## 10. Sexto concepto: **Una pasada sin atributos necesita su propio estado de dibujo**
 
 ### 10.1 Descripción del problema
 
@@ -522,6 +522,13 @@ arma sus vértices con `gl_VertexID` (triángulo a pantalla completa, post-proce
 estencil) y por eso no lleva VBO. Es fácil creer que "no hay geometría, entonces
 no hace falta VAO": con ese razonamiento la pasada funciona en un contexto de
 compatibilidad y no en el core que pide el motor.
+
+El motivo es general y no exclusivo de OpenGL: **la pasada sin atributos igual
+necesita el estado que la API exige para dibujar**. En un contexto core es el
+VAO; en una API que exige un *pipeline* ligado es el pipeline; en una que exige
+un *command buffer* es el command buffer. La regla que se aplique es la misma:
+quien ejecuta el dibujo posee ese estado, y el llamador no lo tiene que
+preparar.
 
 ### 10.2 Síntomas
 
@@ -555,29 +562,33 @@ Comprobación directa (`glGetError` después del draw): `0x0502`
 = `GL_INVALID_OPERATION` y los píxeles quedan en el color de clear; ligando un
 VAO vacío el mismo draw devuelve `GL_NO_ERROR` y pinta el degradado esperado.
 
-### 10.4 Solución canónica (Patrón R12 — el que dibuja posee su VAO)
+### 10.4 Solución canónica (Patrón R12 — el que dibuja posee su estado)
 
-**Toda pasada sin atributos necesita un VAO ligado, aunque esté vacío**, y ese
-VAO lo debe poseer quien ejecuta el dibujo, no el llamador:
+**Toda pasada sin atributos necesita su propio estado de dibujo, aunque esté
+vacío**, y ese estado lo debe poseer quien ejecuta el dibujo, no el llamador:
 
 ```cpp
-void OpenGL3Backend::drawFullscreenTriangle() {
-    if (vaoPantallaCompleta_ == 0) GLFuncs::pfnGenVertexArrays(1, &vaoPantallaCompleta_);
-    GLFuncs::pfnBindVertexArray(vaoPantallaCompleta_);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    GLFuncs::pfnBindVertexArray(0);
+// El backend prepara el estado y dibuja; la capa de escena solo pide el
+// dibujo a pantalla completa con el programa ya en uso.
+void BackendVulkan::drawFullscreenTriangle() {
+    // Pipeline del triangulo a pantalla completa ya ligado, command buffer
+    // abierto: el backend aporta el estado que la API exige.
+    vkCmdDraw(commandBuffer_, 3, 1, 0, 0);
 }
 ```
 
 Puntos clave:
 
-- El VAO vacío se crea **una sola vez** y se reusa; no hay que subir geometría
-  ni atributos.
-- El dibujo va por el **backend** (`IRenderBackend`), no por un `glDrawArrays`
-  suelto en la capa de escena: así el estado gráfico queda en la única capa que
-  lo posee y cualquier pasada futura reusa el mismo camino.
-- Fuera del backend, la regla general es: **si hay `glDraw*`, antes hay un
-  `glBindVertexArray`** (los meshes y los batches de líneas ya lo hacían).
+- El estado vacío (el VAO de OpenGL, el pipeline de Vulkan) se crea **una sola
+  vez** y se reusa; no hay que subir geometría ni atributos.
+- El dibujo va por el **backend** (`IRenderBackend`), no por una llamada de
+  dibujo suelta en la capa de escena: así el estado gráfico queda en la única
+  capa que lo posee y cualquier pasada futura reusa el mismo camino. El
+  contrato expone exactamente eso: `drawFullscreenTriangle()` dibuja con el
+  programa ya en uso y sin geometría.
+- Fuera del backend, la regla general es: **el estado que la API exige para
+  dibujar lo prepara el backend, nunca el llamador** (los meshes y los batches
+  de líneas ya lo hacían).
 
 Checklist de mitigación:
 
@@ -598,7 +609,7 @@ Checklist de mitigación:
 
 | # | Ubicación | Operación | Herramienta/SO | Fix Aplicado | Commit |
 |---|-----------|-----------|----------------|--------------|--------|
-| 1 | `SceneRenderer::dibujarCielo()` (`src/Rendering/SceneRenderer.cpp`) | Cielo degradado (triángulo a pantalla completa con `gl_VertexID`) sin VAO ligado en contexto core | OpenGL core (`GLFW_OPENGL_CORE_PROFILE`, Mesa 4.6) | R12: `IRenderBackend::drawFullscreenTriangle()` posee un VAO vacío y lo liga por dentro | `fix(rendering): ligar VAO en el pase a pantalla completa del cielo` |
+| 1 | `SceneRenderer::dibujarCielo()` (`src/Rendering/SceneRenderer.cpp`) | Cielo degradado (triángulo a pantalla completa con `gl_VertexID`) sin VAO ligado en contexto core | OpenGL core (`GLFW_OPENGL_CORE_PROFILE`, Mesa 4.6) | R12: `IRenderBackend::drawFullscreenTriangle()` posee el estado de la pasada y lo liga por dentro | `fix(rendering): ligar VAO en el pase a pantalla completa del cielo` |
 
 ---
 

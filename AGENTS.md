@@ -234,6 +234,57 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
     cubre con sonda local o CI en la plataforma real; la decisión queda a evaluar
     según la funcionalidad.
 
+## Arquitectura de render: la API gráfica es intercambiable
+
+El core **no implementa ninguna API gráfica**. Define el *contrato* que cualquier
+backend tiene que respetar y deja la implementación en blanco: el backend por
+defecto es `BackendNulo`, que cumple el contrato entero sin dibujar nada. Un
+backend real se instala con `Rendering::Backend::instalarBackend()` antes de
+arrancar el bucle.
+
+| Pieza | Archivo | Qué aporta |
+|---|---|---|
+| Contrato de render | `src/Rendering/ContratoRender.h` | Tipos de programa (`ShaderKind`), nombres y tipos de los uniformes por tipo de programa, layout de vértices, máximo de luces, estructuras de vértice. |
+| Contrato del backend | `src/Rendering/Backend/IRenderBackend.h` | La interfaz que implementa el backend: recursos (malla, batch de líneas, texturas 2D, cubemap, render target, programa), estado (viewport, profundidad, blend) y draws. |
+| Backend nulo | `src/Rendering/Backend/BackendNulo.{h,cpp}` | La implementación en blanco: `init()` correcto, `available()` falso, recursos inválidos. |
+| Backend activo | `src/Rendering/Backend/BackendActivo.cpp` | La instancia activa: `activeBackend()` y `instalarBackend()`. |
+| Fachada de la interfaz | `src/ImGui/BackendImGui.h` + `BackendImGuiNulo.cpp` | `MotorImGui::{init,shutdown,newFrame,render,hayRenderer,nombreRenderer}`; en el core la implementación es nula. |
+
+Reglas que se sostienen en este repositorio:
+
+- **El motor no habla el dialecto de ninguna API.** El texto del shader (GLSL,
+  SPIR-V o el que corresponda) vive en el backend: el motor pide un programa por
+  tipo (`createProgram(ShaderKind)`) y el backend lo construye con su dialecto.
+- **Los uniformes se escriben con las constantes del contrato**, nunca con
+  literales: `Rendering::Contrato::Uniforme::kModel`, `kTint`, etc. El backend
+  resuelve por nombre y ese nombre tiene una sola fuente de verdad. Los arrays
+  de luces se escriben con el nombre del array y el índice entre corchetes
+  (`"uLightTypes[0]"`), que es la forma que el backend tiene que reconocer.
+- **Cada tipo de programa declara la semántica de sus uniformes** en
+  `Contrato::Detalle`. Un renderer no puede usar un uniforme que su tipo de
+  programa no expone.
+- **`uniformLocation` es un token opaco** del backend, no una *location* de una
+  API concreta: puede ser un offset de bloque, un índice de descriptor o una
+  location. El motor solo lo reenvía a los `setUniform*`; `-1` significa que el
+  programa no expone ese uniforme.
+- **La ventana no pide contexto gráfico**: se crea con `GLFW_NO_API` y la
+  superficie la crea el backend, que es quien sabe hacerlo.
+- **El estado que la API exige para dibujar lo prepara el backend**, nunca el
+  llamador (patrón documentado en `DocuTecnicoBugs.md`).
+- El test `contrato-render-tests` (`tests/ContratoRenderTests.cpp`) verifica el
+  contrato, el backend nulo y un backend de mentira, y además hace un *source
+  lint* de los renderers: falla si alguno escribe un uniforme con un literal o
+  si usa un uniforme que su tipo de programa no expone.
+
+## Plan de trabajo en curso
+
+El plan vive en `.agentes/` (ignorado por git) y se actualiza en cada paso.
+
+| Plan | Repositorio | Objetivo | Estado |
+|---|---|---|---|
+| `PLAN CORE SIN API GRAFICA.md` | este | Dejar el core sin API gráfica implementada: contrato de render, backend nulo, ventana sin contexto y fachadas de interfaz. | Cerrado |
+| `PLAN IMPLEMENTACION VULKAN.md` | `FunshiEngineVulkan` | Implementar el backend Vulkan sobre el contrato e integrarlo con los renderers y la interfaz. | En curso |
+
 ## Memoria de trabajo: documentos locales ignorados por git
 
 Todo el estado local que un agente necesita para retomar el trabajo sin

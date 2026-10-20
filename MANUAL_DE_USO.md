@@ -41,16 +41,15 @@ por arrastre y escribir scripts con la API exacta que expone el motor.
 
 ## 1. Requisitos e inicio rapido
 
-**Dependencias:** CMake >= 3.16, compilador con C++17, OpenGL 3.3 core (sin GLU),
-GLFW, GLM, Assimp y Bullet. Java es opcional (solo scripting Java): si el build
-encuentra un JDK, se compila el soporte `FUNSHI_JAVA=ON` automaticamente.
+**Dependencias:** CMake >= 3.16, compilador con C++17, GLFW, GLM, Assimp y
+Bullet. Java es opcional (solo scripting Java): si el build encuentra un JDK, se
+compila el soporte `FUNSHI_JAVA=ON` automaticamente.
 
-El **perfil core es obligatorio**: el motor pide un contexto OpenGL 3.3 core
-(GLFW `GLFW_OPENGL_CORE_PROFILE` + `GLFW_OPENGL_FORWARD_COMPAT`) porque todo su
-render es con shaders y no usa estado fijo. Si la GPU no lo soporta, el arranque
-se corta con un mensaje en consola y la ventana no se abre; en ese caso hay que
-actualizar el driver. El requisito real es GLSL 330, que es lo que imponen los
-shaders del engine.
+El motor no depende de ninguna API gráfica: define el contrato de render y lo
+resuelve un backend que se instala en tiempo de ejecución. El que viene en este
+repositorio cumple el contrato y no dibuja, así que el editor abre, se recorre
+la escena y las pasadas de dibujo se omiten. El backend que se instale es el
+que fija la API gráfica y el dialecto de los shaders.
 
 ```bash
 cmake -S FunshiEngineGL -B FunshiEngineGL/build
@@ -654,7 +653,7 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 
 ## 10. Cámaras
 
-- `CameraComponent` con **vistas previas en vivo** (render a FBO); detalle
+- `CameraComponent` con **vistas previas en vivo** (render a render target); detalle
   completo en [CAMARAS_VISTAS_PREVIAS.md](CAMARAS_VISTAS_PREVIAS.md).
 - "Usar" en el panel de la camara la marca como activa; el id se persiste en la
   configuracion del proyecto (`ConfiguracionProyecto.json`), con default

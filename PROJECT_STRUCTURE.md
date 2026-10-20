@@ -4,17 +4,18 @@
 
 `FunshiEngineGL` es un editor/motor gráfico 3D en C++17. El ejecutable combina:
 
-- Ventana y contexto OpenGL 3.3 **core** mediante GLFW.
-- Renderizado con un único pipeline moderno: los modelos usan `MeshRenderer`
-  (VBO/VAO + shaders) y las líneas un batch en GPU con shader de ancho en
-  píxeles. No queda modo inmediato (`glBegin/glEnd`), ni matrices de
-  compatibilidad, ni materiales ni luces de estado fijo. La grilla es un
-  componente (`Grid`) en una pasada independiente que ya no usa display lists;
-  los marcadores de luz/cámara y los gizmos de los colliders se dibujan con el
-  mismo pipeline de líneas. Los tres ejes (X rojo, Y verde, Z azul) tienen un
-  solo color de base en toda la escena —el de la guía de eje, que usa el gizmo
-  como referencia— y la grilla y la guía lo ajustan por contraste contra el
-  color que tienen debajo.
+- Ventana y eventos mediante GLFW, sin contexto gráfico: la superficie la crea
+  el backend de render que se instale.
+- Renderizado con un único pipeline moderno, resuelto por un backend
+  intercambiable: los modelos usan `MeshRenderer` (malla en GPU + shaders) y
+  las líneas un batch en GPU con shader de ancho en píxeles. No queda modo
+  inmediato (`glBegin/glEnd`), ni matrices de compatibilidad, ni materiales ni
+  luces de estado fijo. La grilla es un componente (`Grid`) en una pasada
+  independiente que ya no usa display lists; los marcadores de luz/cámara y los
+  gizmos de los colliders se dibujan con el mismo pipeline de líneas. Los tres
+  ejes (X rojo, Y verde, Z azul) tienen un solo color de base en toda la
+  escena —el de la guía de eje, que usa el gizmo como referencia— y la grilla y
+  la guía lo ajustan por contraste contra el color que tienen debajo.
 - Interfaz de editor con Dear ImGui y gizmos con ImGuizmo.
 - Jerarquía de entidades basada en árboles enlazados propios.
 - Simulación física mediante Bullet Physics detrás de una fachada desacoplada.
@@ -137,7 +138,7 @@ FunshiEngineGL/                          ← raíz del repo
     └── src/
         ├── main.cpp                     ← composition root: ventanas, callbacks, bucle, config
         ├── EngineTime.h / EngineTime.cpp← delta time y limitador de FPS
-        ├── Ventana.h / Ventana.cpp      ← inicialización GLFW y contexto 3.3 core
+        ├── Ventana.h / Ventana.cpp      ← inicialización GLFW (ventana y eventos, sin contexto)
         ├── Assets/                      ← caché Flyweight compartida (meshes e imágenes)
         │   ├── AssetManager.h/.cpp      ← registro de AssetPath→Mesh (loader inyectable)
         │   ├── TextureManager.h/.cpp    ← registro de AssetPath→Image (loader inyectable)
@@ -301,11 +302,12 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── TreeGUI/TreeGUI.h         ← widget de árbol genérico para ImGui
         │   └── IconosGUI/                ← carga de íconos con stb_image
         ├── Iluminacion/
-        │   └── LightSystem.h/.cpp        ← dueño del estado GL de luces (GL_LIGHT0..7) por frame
+        │   └── LightSystem.h/.cpp        ← datos de las luces por frame (los sube el renderer)
         ├── Input/
         │   └── EditorInput.h/.cpp       ← callbacks GLFW de teclado/mouse + máquina de
         │                                  movimiento de cámara (extraídas de main.cpp)
-        ├── ImGui/                        ← Dear ImGui v1.x integrado (+ backends glfw/opengl3)
+        ├── ImGui/                        ← Dear ImGui v1.x integrado (backend glfw + fachada
+        │                                  de render propia, sin backend gráfico atado)
         ├── Matematicas/
         │   └── StructVec3.h/.cpp         ← vec3 propio
         ├── Rendering/
@@ -316,26 +318,28 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── TilemapRenderer.h/.cpp      ← sube la malla horneada del Tilemap a GPU (caché
         │   │                                  por revisión) y la dibuja con el shader de sprites
         │   ├── LineRenderer.h/.cpp         ← líneas, wireframes y gizmos recortados al mismo horizonte
-        │   ├── MeshGPU.h/.cpp              ← wrapper RAII de VBO/VAO/EBO
+        │   ├── MeshGPU.h/.cpp              ← wrapper RAII de la malla en GPU
         │   ├── DibujoModelo.h/.cpp         ← helpers de render por modelo
         │   ├── LineBatch.h/.cpp            ← batch GPU de líneas expandidas
         │   ├── LineBuilder.h/.cpp          ← expansión de segmentos a quads
         │   ├── LineRenderer.h/.cpp         ← API de dibujo de líneas (grilla, ejes, gizmos)
         │   ├── GrillaRenderer.h/.cpp       ← geometría/lógica de grilla infinita
         │   ├── GuiaEje.h/.cpp              ← guía de eje con contraste
-        │   ├── TextureGL.h/.cpp            ← wrapper de textura 2D + cubemap
-        │   ├── RenderTarget.h/.cpp         ← FBO (viewport/vista previa)
+        │   ├── TexturaGPU.h/.cpp           ← wrapper de textura 2D + cubemap
+        │   ├── RenderTarget.h/.cpp         ← render target (viewport/vista previa)
         │   ├── Cielo.h/.cpp                ← cielo degradado
         │   ├── Difuminado.h/.cpp           ← cálculo de difuminado radial
         │   ├── CacheCubemap.h             ← caché de caras del cubemap
+        │   ├── ContratoRender.h            ← contrato de render: tipos de programa, nombres
+        │   │                                  de uniform, layout de vértices, uniforms por tipo
         │   ├── Backend/                    ← abstracción de backend gráfico (Strategy)
         │   │   ├── IRenderBackend.h        ← contrato (handles opacos, MeshData, Image2D,
-        │   │   │                              DepthFunc, recursos GPU, estados, FBO)
-        │   │   ├── OpenGL3Backend.h/.cpp   ← implementación OpenGL 3.3 core
-        │   │   └── GLFuncs.h                ← carga perezosa de funciones GL
-        │   └── Shaders/                    ← ShaderProgram + fuentes inyectadas
+        │   │   │                              DepthFunc, recursos GPU, estados, render target)
+        │   │   ├── BackendNulo.h/.cpp      ← implementación en blanco (cumple el contrato, no dibuja)
+        │   │   └── BackendActivo.cpp       ← backend activo e instalacion (instalarBackend)
+        │   └── Shaders/                    ← ShaderProgram (el fuente del shader es del backend)
         │       ├── ShaderProgram.h/.cpp
-        │       └── ShaderSources.h/.cpp
+        │       └── ShaderException.h
         ├── Objetos/
         │   ├── GameObject.h/.cpp         ← id, nombre, tag, estado, update y serialización binaria
         │   ├── TagRegistry.h             ← registro dinámico de tags para el Inspector
@@ -401,7 +405,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                               render, input (ratón/tecla/rueda/foco),
         │   │                               descargar
         │   ├── BackendNull.h            ← backend sin motor (no-op): corre el ciclo
-        │   │                               completo headless, sin CEF ni GL (tests/CI)
+        │   │                               completo headless, sin CEF ni backend grafico (tests/CI)
         │   ├── BackendCef.h             ← backend CEF real (pimpl sin headers CEF,
         │   │                               el motor en C++17 nunca ve a CEF)
         │   ├── BackendCef.cpp           ← única unidad con CEF (C++20, target
@@ -413,19 +417,19 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                               cada vista
         │   ├── EstadoInterfaces.h/.cpp  ← estado de runtime por interfaz: dos árboles JSON
         │   │                               (estado motor→JS y salida JS→motor) por rutas JSON
-        │   │                               Pointer; lógica sin GL/backend (pimpl + nlohmann)
+        │   │                               Pointer; logica sin backend grafico (pimpl + nlohmann)
         │   └── VistasWebUI.h/.cpp       ← vistas vivas de una escena, una por interfaz
         │                                   activa: carga, recarga por cambio de .html
         │                                   o por mtime en disco, redimensiona,
         │                                   entrega el estado y recoge la salida,
-        │                                   y descarga (lógica sin GL)
+        │                                   y descarga (logica sin backend grafico)
         └── Scenes/
             ├── GameScene.h/.cpp          ← coordinador del frame: render, GUI, física, gizmo,
             │                                previews y pasada de la grilla
             ├── InterfacesJuego.h/.cpp    ← recolección de las interfaces de juego (HUD) de la
             │                                escena: recorre TODOS los objetos y devuelve las
             │                                InterfaceComponent activas y con ruta, ordenadas por
-            │                                z (lógica pura, sin GL ni GUI, probada headless)
+            │                                z (logica pura, sin GUI ni backend grafico, probada headless)
             ├── GizmoController.h/.cpp   ← gizmo ImGuizmo + picking (desde GameScene): estado
             │                                (operación/global/listo), arrastre con
             │                                TransformComando (historial) y congelación de
@@ -458,8 +462,8 @@ FunshiEngineGL/                          ← raíz del repo
 
 ```text
 main.cpp
-  ├── Ventana (GLFW init: contexto 3.3 core + carga dura de GLFuncs)
-  ├── ImGui init (backends glfw + opengl3; imgui.ini gestionado por el gestor)
+  ├── Ventana (GLFW init: ventana y eventos, sin contexto gráfico)
+  ├── ImGui init (backend glfw + fachada de render; imgui.ini gestionado por el gestor)
   ├── GUIManager (crea el menú y las ventanas; posee FileManager)
   ├── GameScene(guiManager)
   │   ├── SceneRegistry            ← ownership de objetos
@@ -484,7 +488,7 @@ main.cpp
       ├── pasada de la grilla (Grid + batch de líneas + shader de ancho en
       │   píxeles; solo fuera de Juego, color efectivo según el perfil de
       │   apariencia y referencia de contraste para la guía de eje)
-      ├── dibujarGameObjects (MeshRenderer VBO/VAO+shader; único pipeline)
+      ├── dibujarGameObjects (MeshRenderer: malla en GPU + shader; único pipeline)
       ├── gizmo ImGuizmo y overlays auxiliares solo fuera de Juego
       ├── GUI() de GameScene + DockSpace siempre enviados durante edición y
       │   simulación; E solo oculta paneles, y las ventanas flotantes se
@@ -536,9 +540,10 @@ solo como orquestador de arranque y bucle.
   `SceneCleared`, `ObjectSelected` y `ComponentStructureChanged` (alta o baja de
   componente; el inspector reconcilia solo con este último). No es global: vive
   dentro de `GameScene`.
-- `LightSystem` es el dueño del estado GL de luces: cada frame escanea los objetos,
-  toma los componentes `Light` y parametriza los slots `GL_LIGHT0..7`. No queda
-  lógica de luz en el bucle ni en los componentes.
+- `LightSystem` es el dueño de los datos de las luces: cada frame escanea los
+  objetos, toma los componentes `Light` y exporta la descripción de cada luz
+  (tipo, posición, color, atenuación) que el renderer de la escena sube como
+  uniforms del shader. No queda lógica de luz en el bucle ni en los componentes.
 - `ApplicationStateMachine` modela `MainMenu`, `Editing`, `Debugging`, `Playing`
   (Juego) y `Exiting`. `OrquestadorEstadoGUI` decide Escape, Iniciar Estudio,
   F5/Depuración, Juego, pausa, Reset y término; `GameScene` conserva un snapshot
@@ -838,7 +843,7 @@ el patrón Strategy + registro de los backends de audio y de scripts:
   relativos (CSS, JS, imágenes) por sí mismo.
 - `IWebUIBackend` es el contrato del motor web: `ejecutarSubproceso` (rol de
   subproceso del motor web, antes de todo en `main`), `inicializar` (arranque
-  una vez por proceso, con GL listo), `bombear` (bucle de mensajes por frame),
+  una vez por proceso, con la ventana lista), `bombear` (bucle de mensajes por frame),
   `cargar`, `redimensionar`, `actualizar`, `establecerEstado` (entrega el
   estado JSON a la página), `leerSalida` (recoge `FunshiUI.salida`), `render`
   (que devuelve el handle de textura para ImGui), el input neutral (ratón con
@@ -850,7 +855,7 @@ el patrón Strategy + registro de los backends de audio y de scripts:
   `bombear`, `apagar`, que `main.cpp` y `main_juego.cpp` invocan) y reenvía el
   ciclo de cada vista al backend activo. Es la única puerta que usa el resto
   del motor.
-- `BackendNullWebUI` corre el ciclo completo sin motor web ni GL, para tests
+- `BackendNullWebUI` corre el ciclo completo sin motor web ni backend grafico, para tests
   headless y CI.
 - `BackendCefWebUI` es el backend real sobre CEF 154 (Chromium): una ventana
   off-screen (OSR) por vista, bitmap BGRA a textura vía `updateTexture2D`,
@@ -861,8 +866,8 @@ el patrón Strategy + registro de los backends de audio y de scripts:
   al binario. Sin CEF el runtime cae al nulo.
 - `EstadoInterfaces` guarda, por interfaz viva, dos árboles JSON: el **estado**
   que el motor entrega a la página y la **salida** que la página devuelve. Se
-  manejan por rutas estilo JSON Pointer. Es lógica pura (pimpl + nlohmann), sin
-  GL ni backend, y los scripts la manipulan por la tabla de servicios.
+  manejan por rutas estilo JSON Pointer. Es logica pura (pimpl + nlohmann), sin
+  backend grafico, y los scripts la manipulan por la tabla de servicios.
 - `VistasWebUI` gobierna las vistas vivas de una escena (una por interfaz
   activa): las da de alta, recarga al cambiar la ruta del `.html` o al cambiar
   el archivo en disco (sello `mtime`, patrón `cambioElFuente` de scripts),
@@ -881,8 +886,7 @@ el patrón Strategy + registro de los backends de audio y de scripts:
 
 | Dependencia | Uso | Integración |
 |---|---|---|
-| GLFW | Ventana, contexto OpenGL y eventos de input | `find_package(glfw3)` |
-| OpenGL 3.3 core | Renderizado (shaders, VBO/VAO, FBO) vía `GLFuncs` | `find_package(OpenGL)` (sin GLU) |
+| GLFW | Ventana y eventos de input | `find_package(glfw3)` |
 | Bullet Physics | Física y colisiones (btDiscreteDynamicsWorld) | `find_package(Bullet)` con fallback a targets clásicos |
 | Assimp | Carga de modelos 3D (opcional via `USE_ASSIMP`) | `find_package(assimp)` |
 | GLM | Matemáticas de Transform y cámaras (`GLM_ENABLE_EXPERIMENTAL`) | Usa `External/glm` si existe; si no, `find_package(glm)` del sistema |
@@ -891,9 +895,12 @@ el patrón Strategy + registro de los backends de audio y de scripts:
 | ImGuizmo | Gizmos de transformación | Integrada en `FunshiEngineGL/ImGuizmo/` |
 | ncurses / X11 | Enlace en Linux | `find_package(Curses)` + X11/Xrandr/Xi |
 
-En Windows se enlazan además `opengl32` y `dbghelp` (stack traces de
-`RuntimeException`). `glu32` ya no se enlaza: sin modo inmediato no queda ningún
-`glu*` en uso.
+El motor no depende de ninguna API gráfica: el renderizado lo resuelve un
+backend intercambiable que se instala en tiempo de ejecución (el que viene en
+este repositorio cumple el contrato y no dibuja). Por eso no hay OpenGL ni
+Vulkan entre las dependencias: el backend que se agregue trae las suyas.
+
+En Windows se enlaza además `dbghelp` (stack traces de `RuntimeException`).
 
 ---
 
@@ -955,7 +962,7 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
 - `texturemanager-tests` (15): caché Flyweight de imágenes CPU (sin entrar la pila gráfica).
 - `estructuras-tests` (87): `ListaDE`, `ArbolEnlazado`, `PriorityListaDE`,
   `MinHeap`/`MaxHeap`, `ListMergeSort` y `ArbolBinarioEnlazado`.
-- `rendering-tests` (178): geometría de las líneas del pipeline moderno
+- `rendering-tests` (187): geometría de las líneas del pipeline moderno
   (`LineBuilder`): expansión de cada segmento al quad que ensancha el shader,
   color por extremo (difuminado de la grilla), polilíneas, aristas con índices
   fuera de rango y caja de 12 aristas; más la guía de eje (`GuiaEje`): origen y
@@ -971,7 +978,19 @@ headless** registrados en CTest (`scripts-java-tests` solo se registra con
   colores efectivos del cielo degradado (`Cielo`): los dos extremos con B/N y
   tema resueltos; y la identidad del cubemap del Skybox (`CacheCubemap`): la
   clave que decide cada cuanto volver a subirlo a GPU cambia solo si cambia una
-  ruta o su fecha de modificación. Solo CPU, sin OpenGL.
+  ruta o su fecha de modificación. Solo CPU, sin pila gráfica.
+- `contrato-render-tests` (571): el contrato de render. La tabla de uniforms
+  por tipo de programa (`ContratoRender.h`) es completa, no repite nombres y
+  no declara ninguno que no exista en el namespace de uniforms; cada tipo
+  expone los uniforms que su semántica exige (el difuminado radial de las
+  líneas, el recorte de uv y el tinte de los sprites, el modelo de iluminación
+  de las mallas, el degradado del cielo); los renderers escriben los uniforms
+  con las constantes del contrato y nunca con literales; el backend en blanco
+  cumple el contrato entero sin dibujar (todo handle inválido, ningún
+  localizador de uniform, diagnóstico de GPU presente) y el motor arranca y
+  omite las pasadas; y el backend se puede instalar y reemplazar, con el motor
+  pidiendo los programas por tipo. No hay GPU: el backend de mentira solo
+  registra las llamadas, así que el resultado no depende del driver.
 - `scripts-tests` (173): reflexión `SerializeField` (escalares, arrays, grupos
   anidados y referencias a componentes por `REFLECT_COMPONENTE`, con su
   resolución por nombre del objeto dueño) y su round-trip binario; el contrato
@@ -1131,7 +1150,7 @@ main.cpp
         ├─ dibujarGameObjects (MeshRenderer shader; único pipeline)
         ├─ marcadores de luz y cámara (wireframes auxiliares, batch de líneas)
         ├─ ImGuizmo::Manipulate sobre el GizmoTarget activo (objeto o collider)
-        ├─ dibujarViewportsPrevios (FBO de cámaras) + paneles ImGui
+        ├─ dibujarViewportsPrevios (render target de cámaras) + paneles ImGui
         ├─ pintarInterfacesJuego (overlay HUD; también corre sin GUI de editor)
         └─ pickObject con el mouse para seleccionar en el viewport
 ```
@@ -1233,18 +1252,18 @@ cargar, así que mover la raíz no invalida las escenas existentes.
 - `SettingsObjectInterface` y algunos componentes todavía incluyen y construyen
   detalles concretos; el siguiente paso de desacoplamiento es completar el uso de
   `EditorController` y descriptors de componentes.
-- El renderer es de un solo pipeline: `MeshRenderer` (VBO/VAO + shaders) para
-  mallas y el batch de líneas (GPU + shader de ancho en píxeles) para grilla,
-  marcadores y gizmos de collider. No hay modo inmediato ni estado fijo: la
-  iluminación viaja como uniforms y las transformaciones como uniforms de
-  matriz, así que el contexto es OpenGL 3.3 core estricto.
-- El perfil core es un **requisito duro**, no una preferencia: `Ventana::
-  initVentana` lo pide con `GLFW_OPENGL_CORE_PROFILE` + versión 3.3 +
-  `GLFW_OPENGL_FORWARD_COMPAT`, y si `glfwCreateWindow` falla (driver sin 3.3
-  core) o si a `GLFuncs::init()` le falta alguna función, aborta el arranque con
-  un mensaje en consola en vez de seguir hasta fallar en el primer draw (que se
-  vería como pantalla negra sin explicación). El requisito real es GLSL 330,
-  que es lo que imponen los shaders (`layout in/out`).
+- El renderer es de un solo pipeline: `MeshRenderer` (malla en GPU + shaders)
+  para mallas y el batch de líneas (GPU + shader de ancho en píxeles) para
+  grilla, marcadores y gizmos de collider. No hay modo inmediato ni estado fijo:
+  la iluminación viaja como uniforms y las transformaciones como uniforms de
+  matriz.
+- La ventana no tiene contexto gráfico: `Ventana::initVentana` la crea con
+  `GLFW_NO_API` y deja la superficie en manos del backend de render, que la
+  pide al instalarse. El motor arranca con el backend en blanco, de modo que
+  sin backend instalado el editor abre, recorre la escena y omite las pasadas
+  de dibujo en vez de fallar en el primer draw. El backend que se implemente
+  es el que fija el dialecto de los shaders (el fuente deja de estar en el
+  motor) y la versión de la API que exige.
 
 ---
 
@@ -1254,7 +1273,8 @@ cargar, así que mover la raíz no invalida las escenas existentes.
 Aplicación:      main.cpp, MiAPP, ApplicationStateMachine, GUIManager, EditorConfig
 Dominio:         GameScene, SceneRegistry, EditorController, GameObject, Component,
                  EventBus, FileManager, LightSystem
-Infraestructura: BulletPhysicsAdapter, OpenGL/GLFW (Ventana), Assimp (Modelos3D),
+Infraestructura: BulletPhysicsAdapter, GLFW (Ventana) y el backend de render
+                 intercambiable, Assimp (Modelos3D),
                  Binario/SceneSerializer, Script (dlopen/LoadLibrary), FileSystemWatcher
 Dependencias:    ImGui, ImGuizmo, nlohmann/json, GLM (integradas o vendoriadas)
 ```
