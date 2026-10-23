@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,7 @@
 // Modulo CPU puro para el cielo degradado del editor: dado el perfil de
 // apariencia, expone los dos colores del degradado (superior/inferior) ya
 // resueltos con la logica B/N y tema. Lo usan el renderer del cielo y las
-// pruebas headless sin necesidad de OpenGL ni ImGui.
+// pruebas headless sin necesidad de pila grafica ni ImGui.
 namespace Cielo {
 
 // Colores efectivos del degradado (superior e inferior del viewport).

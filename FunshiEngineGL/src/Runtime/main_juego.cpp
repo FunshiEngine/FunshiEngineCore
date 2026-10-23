@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,8 +45,8 @@
 #endif
 
 #include <imgui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
+#include "ImGui/BackendImGui.h"
+
 
 #include <iostream>
 #include <cstdio>
@@ -143,8 +143,8 @@ int EjecutarJuego(int argc, char* argv[]) {
         std::cerr << "[GLFW] error " << error << ": " << desc << '\n';
     });
 
-    // 3. Crear ventana (Ventana llama a glfwInit internamente, crea la ventana,
-    // inicializa el contexto 3.3 core y carga las funciones de OpenGL).
+    // 3. Crear ventana (Ventana llama a glfwInit internamente y crea la
+    // ventana y sus eventos; la superficie grafica la crea el backend).
     Ventana* auxVentana = new Ventana();
     auxVentana->initVentana();
     GLFWwindow* window = auxVentana->getWindow();
@@ -158,11 +158,9 @@ int EjecutarJuego(int argc, char* argv[]) {
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.IniFilename = nullptr; // No guardar imgui.ini en juego exportado
 
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    // El contexto OpenGL es 3.3 core (ver Ventana::initVentana); el GLSL
-    // version string debe coincidir. "#version 460" provocaba que ImGui no
-    // pudiera compilar sus shaders internos y el frame quedaba en negro.
-    ImGui_ImplOpenGL3_Init("#version 330 core");
+    // La interfaz se prepara por la fachada: el motor no llama a un backend de
+    // ImGui concreto porque cada API grafica tiene el suyo.
+    MotorImGui::init(window, true);
 
     // 5. GameScene (nucleo: render, fisica, scripts, input)
     // El constructor que NO requiere GUIManager - solo para runtime
@@ -243,13 +241,16 @@ int EjecutarJuego(int argc, char* argv[]) {
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+
+        // Apertura del frame: el backend prepara lo que necesita para dibujar
+        // en el (en una API con swapchain, la imagen siguiente).
+        Rendering::Backend::activeBackend().beginFrame();
 #ifdef FUNSHI_CEF
         WebUIRuntime::bombear();
 #endif
         Time::update();
 
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
+        MotorImGui::newFrame();
         ImGui::NewFrame();
 
         // El juego exportado siempre corre en modo Playing: setStart(true)
@@ -265,9 +266,12 @@ int EjecutarJuego(int argc, char* argv[]) {
         scene->gameScene();
 
         ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        MotorImGui::render(ImGui::GetDrawData());
 
-        glfwSwapBuffers(window);
+        // Cierre del frame: el backend envia lo dibujado y muestra el
+        // resultado. El intercambio de buffers es un detalle de la API
+        // grafica, asi que lo hace el backend y no el motor.
+        Rendering::Backend::activeBackend().endFrame();
     }
 
     // 14. Cleanup ordenado (igual que main.cpp, sin GUIManager)
@@ -279,8 +283,7 @@ int EjecutarJuego(int argc, char* argv[]) {
     WebUIRuntime::apagar();
 #endif
 
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
+    MotorImGui::shutdown();
     ImGui::DestroyContext();
 
     delete input;

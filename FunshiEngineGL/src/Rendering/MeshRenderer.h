@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@
 
 class ShaderProgram;
 class MeshGPU;
-class TextureGL;
+class TexturaGPU;
 class Mesh;
 class Image;
 class TextureManager;
@@ -88,7 +88,7 @@ public:
                             const float modelo[16], const float view[16],
                             const float projection[16], float deltaTime);
 
-    // Libera los MeshGPU/TextureGL cacheados (por ejemplo tras recargar
+    // Libera los MeshGPU/TexturaGPU cacheados (por ejemplo tras recargar
     // mallas o texturas).
     void clearCache();
 
@@ -96,7 +96,7 @@ private:
     std::unique_ptr<ShaderProgram> shader_;
     TextureManager* textureManager_ = nullptr;
     std::unordered_map<const Mesh*, std::unique_ptr<MeshGPU>> gpu_;
-    std::unordered_map<const Image*, std::unique_ptr<TextureGL>> gpuTexturas_;
+    std::unordered_map<const Image*, std::unique_ptr<TexturaGPU>> gpuTexturas_;
     // Paths de textura que ya fallaron al cargar: no se reintentan por frame.
     std::unordered_set<std::string> texturasFallidas_;
     // Mallas sin normales por vertice (no dibujables): el aviso por consola se

@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +28,7 @@
 #include "Backend/IRenderBackend.h"
 
 class ShaderProgram;
-class TextureGL;
+class TexturaGPU;
 class TextureManager;
 struct Mesh;
 
@@ -91,7 +91,7 @@ private:
     bool shaderFallado_ = false;
     TextureManager* textureManager_ = nullptr;
     std::unordered_map<const void*, MallaCacheada> mallas_;
-    std::unordered_map<const void*, std::unique_ptr<TextureGL>> gpuTexturas_;
+    std::unordered_map<const void*, std::unique_ptr<TexturaGPU>> gpuTexturas_;
     std::unordered_set<std::string> texturasFallidas_;
 };
 

@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +26,7 @@
 
 // Utilidades de rutas de assets, separadas del resto del proyecto para
 // centralizar la resolucion de recursos (pendiente "portabilidad de rutas").
-// Header-only: no depende de OpenGL ni de la pila grafica, por eso los tests
+// Header-only: no depende de la pila grafica, por eso los tests
 // headless pueden ejercitarla en cualquier plataforma.
 namespace AssetPath {
 

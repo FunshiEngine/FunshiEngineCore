@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,7 +35,7 @@
 // de derivar, para que un valor corrupto en la configuracion no pueda dejar la
 // grilla sin horizonte ni producir una division por cero en la curva.
 //
-// Modulo CPU puro (nada de OpenGL ni glm) para poder ejercitarse en los
+// Modulo CPU puro (nada de pila grafica ni glm) para poder ejercitarse en los
 // targets headless, como LineBuilder y GuiaEje.
 struct Difuminado {
     // Fraccion del radio que queda completamente opaca (40 de 150 en el

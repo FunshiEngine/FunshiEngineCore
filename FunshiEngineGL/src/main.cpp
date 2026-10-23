@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,8 +37,7 @@
 #include "../src/GUI/Tema/TemaEditor.h"
 #include <imgui.h>
 #include "EngineTime.h"
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
+#include "ImGui/BackendImGui.h"
 #include "../src/Objetos/Modelos3D.h"
 #include "../src/Objetos/Componentes/CameraComponent.h"
 #include "../src/Proyectos/GestorDeProyectos.h"
@@ -448,8 +447,8 @@ static int EjecutarMotor(int argc, char* argv[])
     }
 
     
-    // Se registra ANTES de ImGui_ImplGlfw_InitForOpenGL (mas abajo): el backend
-    // de ImGui encadena la callback previa para los clics del editor.
+    // Se registra ANTES de inicializar el backend de ImGui (mas abajo): el
+    // backend de ImGui encadena la callback previa para los clics del editor.
     input->registrarCallbacks(window);
     // Cursor consistente con la maquina desde el arranque (el menu arranca
     // visible y el editor con las interfaces activas: cursor normal).
@@ -513,21 +512,18 @@ static int EjecutarMotor(int argc, char* argv[])
     // cambios en vivo llegan por el bus de GUI (EditorEventBus/AparienciaCambio),
     // ya no por relectura por frame del menu.
     TemaEditor::aplicarEstilo(mainMenu->getApariencia());
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    // El contexto que pide Ventana es OpenGL 3.3 core, asi que el GLSL del
-    // backend tiene que caber en ese contexto (un "#version 440" no compila en
-    // 3.3 y el shader del backend queda rechazado). El backend parsea el numero
-    // con sscanf("#version %d"), por eso la variante "core" no altera la
-    // eleccion de shaders y el string se prepende tal cual al fuente GLSL.
-    // El retorno se chequea: si el backend no arranca, io.BackendRendererUserData
-    // queda en nullptr y en Release (sin IM_ASSERT) la primera llamada a
-    // ImGui_ImplOpenGL3_NewFrame() desreferencia ese puntero. Con el flag el
-    // bucle omite los llamados del renderer y la app corre sin UI dibujada en
-    // vez de caerse.
-    bool imguiGl3Listo = ImGui_ImplOpenGL3_Init("#version 330 core");
-    if (!imguiGl3Listo)
-        std::cerr << "[main] ImGui_ImplOpenGL3_Init fallo: no se dibujara la "
-                     "interfaz ImGui (renderer OpenGL3 no disponible)\n";
+    // La interfaz se prepara por la fachada: el motor no llama a un backend de
+    // ImGui concreto porque cada API grafica tiene el suyo. Sin backend de
+    // render la interfaz se calcula igual pero no se dibuja, y la app sigue
+    // corriendo en vez de caerse.
+    const bool imguiListo = MotorImGui::init(window, true);
+    if (!imguiListo)
+        std::cerr << "[main] No se pudo inicializar la plataforma de ImGui: "
+                     "la interfaz no recibira eventos de teclado ni de raton.\n";
+    else if (!MotorImGui::hayRenderer())
+        std::cerr << "[main] Sin backend de render para la interfaz: la UI se "
+                     "calcula pero no se dibuja (no hay API grafica "
+                     "implementada).\n";
 
     // Ventana Estado: al cerrarla con la 'X' se persiste en la config
     // del proyecto activo, no en la general. El mismo canal sirve para el
@@ -622,6 +618,12 @@ static int EjecutarMotor(int argc, char* argv[])
         // hasta un frame (~16ms) de latencia a la reaccion del editor.
         glfwPollEvents();
 
+        // Apertura del frame: el backend prepara lo que necesita para dibujar
+        // en el (en una API con swapchain, la imagen siguiente). Va despues de
+        // los eventos para que un redimensionado de la ventana se tenga en
+        // cuenta en el mismo frame.
+        Rendering::Backend::activeBackend().beginFrame();
+
 #ifdef FUNSHI_CEF
         // Bucle de mensajes del motor web (external_message_pump): una vez por
         // frame, en el hilo principal. Sin CEF es no-op.
@@ -667,12 +669,9 @@ static int EjecutarMotor(int argc, char* argv[])
         // listo para ImGui y la pasada de la escena.
         Rendering::Backend::activeBackend().clearScreen(nullptr);
 
-            // El frame del renderer solo si el backend arranco: con
-            // ImGui_ImplOpenGL3_Init() fallido no hay backend data y en Release
-            // (sin IM_ASSERT) NewFrame desreferencia un puntero nulo.
-            if (imguiGl3Listo)
-                ImGui_ImplOpenGL3_NewFrame();
-            ImGui_ImplGlfw_NewFrame();
+            // Frame de los backends de la interfaz (render y plataforma) y
+            // apertura del frame de ImGui.
+            MotorImGui::newFrame();
             ImGui::NewFrame();
 
             // Carga diferida de imgui.ini: DESPUÉS de NewFrame para que g.Windows
@@ -794,12 +793,13 @@ static int EjecutarMotor(int argc, char* argv[])
         if (!scene->isModoJuego()) input->dibujarSidebarOrbita();
 
         ImGui::Render();
-        // Mismo guardia que NewFrame: sin backend, RenderDrawData tambien
-        // desreferencia el puntero nulo del backend data.
-        if (imguiGl3Listo)
-            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        // Envio de los draw lists al backend de render de la interfaz.
+        MotorImGui::render(ImGui::GetDrawData());
 
-        glfwSwapBuffers(window);    
+        // Cierre del frame: el backend envia lo dibujado y muestra el
+        // resultado. El intercambio de buffers es un detalle de la API
+        // grafica, asi que lo hace el backend y no el motor.
+        Rendering::Backend::activeBackend().endFrame();
     }
 
     // Sin proyecto elegido (primer arranque cerrado desde el menu sin entrar
@@ -822,11 +822,8 @@ static int EjecutarMotor(int argc, char* argv[])
     WebUIRuntime::apagar();
 #endif
 
-    // Shutdown solo con backend vivo: ImGui_ImplOpenGL3_Shutdown() desreferencia
-    // el backend data y en Release no hay assert que lo frene.
-    if (imguiGl3Listo)
-        ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
+    // Apagado de los backends de la interfaz y destruccion del contexto.
+    MotorImGui::shutdown();
     ImGui::DestroyContext();
 
     glfwTerminate();

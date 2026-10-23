@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@ class ShaderProgram;
 // de lineas gruesas): cubre la grilla, los marcadores de luz/camara y los
 // wireframes de los colliders, y es la UNICA via de dibujo de lineas (el
 // glBegin/glEnd + glLineWidth del modo inmediato quedo eliminado al migrar a
-// OpenGL 3.3 core). El ancho se resuelve en pixeles dentro del shader, asi que
+// backend que se instale). El ancho se resuelve en pixeles dentro del shader, asi que
 // las lineas se ven igual de gruesas a cualquier distancia (GL_LINES solo
 // garantiza 1 px en un contexto core).
 //

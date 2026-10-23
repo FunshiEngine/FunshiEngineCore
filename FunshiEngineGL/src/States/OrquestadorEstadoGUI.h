@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,7 +30,7 @@
 // main le pregunta por frame y ella es la unica fuente de verdad sobre cuando
 // hay que mostrar menu, correr la escena o simular.
 //
-// Es una orquestacion PURA de estado (sin ImGui ni OpenGL): recibe un
+// Es una orquestacion PURA de estado (sin ImGui ni pila grafica): recibe un
 // puntero no propietario a la maquina de estados y solo la transiciona.
 // Por eso se puede probar headless igual que EditorConfig.
 class OrquestadorEstadoGUI {

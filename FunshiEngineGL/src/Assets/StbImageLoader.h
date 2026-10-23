@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,7 @@
 
 // Loader de imagenes con stb_image (vendoriado en Herramientas/IconosGUI).
 // Decodifica a RGBA (4 canales, estandar para el upload a GPU) y vueltea
-// verticalmente: OpenGL espera la primera fila abajo y los decoders comunes
+// verticalmente: la GPU espera la primera fila abajo y los decoders comunes
 // (PNG/JPG) entregan la primera fila arriba.
 class StbImageLoader : public ITextureLoader {
 public:

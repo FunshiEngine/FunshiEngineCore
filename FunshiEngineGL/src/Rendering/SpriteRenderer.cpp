@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SpriteRenderer.h"
+#include "ContratoRender.h"
 #include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <glm/gtc/type_ptr.hpp>
@@ -28,8 +29,7 @@
 #include "../Assets/Primitivas2D.h"
 #include "../Assets/TextureManager.h"
 #include "Shaders/ShaderProgram.h"
-#include "Shaders/ShaderSources.h"
-#include "TextureGL.h"
+#include "TexturaGPU.h"
 
 namespace Rendering {
 
@@ -42,22 +42,24 @@ void SpriteRenderer::destruir() {
         Backend::activeBackend().destroyMesh(quadMalla_);
         quadMalla_ = Backend::kInvalidHandle;
     }
-    // Los TextureGL son RAII: al vaciar el mapa se liberan sus handles.
+    // Los TexturaGPU son RAII: al vaciar el mapa se liberan sus handles.
     gpuTexturas_.clear();
     texturasFallidas_.clear();
     shader_.reset();
 }
 
 bool SpriteRenderer::inicializar() {
-    if (shader_) return true;
+    if (shader_) return shader_->isValid();
     if (shaderFallado_) return false;
     auto& backend = Backend::activeBackend();
-    if (!backend.init()) return false;
+    // El backend tiene que estar disponible para poder dibujar: la
+    // inicializacion (que necesita la ventana) la hace la Ventana al
+    // arrancar.
+    if (!backend.available()) return false;
 
     try {
         shader_ = std::make_unique<ShaderProgram>(
-            ShaderProgram::fromSource(kSpriteVertexShader,
-                                      kSpriteFragmentShader));
+            ShaderProgram::create(Rendering::Contrato::ShaderKind::Sprites));
     } catch (const std::exception& e) {
         registrarExcepcionDiagnostica("Rendering/SpriteRenderer", e,
                                       NivelDiagnostico::Error);
@@ -95,12 +97,12 @@ bool SpriteRenderer::enlazarTextura(const std::string& path) {
         std::shared_ptr<const Image> image = textureManager_->getTexture(path);
         auto it = gpuTexturas_.find(image.get());
         if (it == gpuTexturas_.end()) {
-            auto gpu = std::make_unique<TextureGL>();
+            auto gpu = std::make_unique<TexturaGPU>();
             gpu->upload(*image);
             it = gpuTexturas_.emplace(image.get(), std::move(gpu)).first;
         }
         it->second->bindUnit(0);
-        shader_->setInt("uTexture", 0);
+        shader_->setInt(Contrato::Uniforme::kTexture, 0);
         return true;
     } catch (const std::exception& e) {
         texturasFallidas_.insert(path); // no reintentar por frame
@@ -134,15 +136,15 @@ bool SpriteRenderer::dibujar(const SpriteDraw& sprite) {
         model[6] *= sprite.tamano[1];
     }
 
-    shader_->setMat4("uModel", model);
-    shader_->setMat4("uView", glm::make_mat4(sprite.view));
-    shader_->setMat4("uProjection", glm::make_mat4(sprite.projection));
+    shader_->setMat4(Contrato::Uniforme::kModel, model);
+    shader_->setMat4(Contrato::Uniforme::kView, glm::make_mat4(sprite.view));
+    shader_->setMat4(Contrato::Uniforme::kProjection, glm::make_mat4(sprite.projection));
 
     const float uvDefault[4] = {0.f, 0.f, 1.0f, 1.0f};
     const float tinteBlanco[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-    shader_->setVec4("uUvRect", sprite.uvRect ? sprite.uvRect : uvDefault);
-    shader_->setVec4("uTint", sprite.tint ? sprite.tint : tinteBlanco);
-    shader_->setInt("uUseTexture", conTextura ? 1 : 0);
+    shader_->setVec4(Contrato::Uniforme::kUvRect, sprite.uvRect ? sprite.uvRect : uvDefault);
+    shader_->setVec4(Contrato::Uniforme::kTint, sprite.tint ? sprite.tint : tinteBlanco);
+    shader_->setInt(Contrato::Uniforme::kUseTexture, conTextura ? 1 : 0);
 
     auto& backend = Backend::activeBackend();
     backend.setBlendEnabled(true);

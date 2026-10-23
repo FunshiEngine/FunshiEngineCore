@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "TilemapRenderer.h"
+#include "ContratoRender.h"
 #include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <glm/gtc/type_ptr.hpp>
@@ -27,8 +28,7 @@
 #include "../Assets/Mesh.h"
 #include "../Assets/TextureManager.h"
 #include "Shaders/ShaderProgram.h"
-#include "Shaders/ShaderSources.h"
-#include "TextureGL.h"
+#include "TexturaGPU.h"
 
 namespace Rendering {
 
@@ -49,15 +49,17 @@ void TilemapRenderer::destruir() {
 }
 
 bool TilemapRenderer::inicializar() {
-    if (shader_) return true;
+    if (shader_) return shader_->isValid();
     if (shaderFallado_) return false;
     auto& backend = Backend::activeBackend();
-    if (!backend.init()) return false;
+    // El backend tiene que estar disponible para poder dibujar: la
+    // inicializacion (que necesita la ventana) la hace la Ventana al
+    // arrancar.
+    if (!backend.available()) return false;
 
     try {
         shader_ = std::make_unique<ShaderProgram>(
-            ShaderProgram::fromSource(kSpriteVertexShader,
-                                      kSpriteFragmentShader));
+            ShaderProgram::create(Rendering::Contrato::ShaderKind::Sprites));
     } catch (const std::exception& e) {
         registrarExcepcionDiagnostica("Rendering/TilemapRenderer", e,
                                       NivelDiagnostico::Error);
@@ -77,12 +79,12 @@ bool TilemapRenderer::enlazarTextura(const std::string& path) {
         std::shared_ptr<const Image> image = textureManager_->getTexture(path);
         auto it = gpuTexturas_.find(image.get());
         if (it == gpuTexturas_.end()) {
-            auto gpu = std::make_unique<TextureGL>();
+            auto gpu = std::make_unique<TexturaGPU>();
             gpu->upload(*image);
             it = gpuTexturas_.emplace(image.get(), std::move(gpu)).first;
         }
         it->second->bindUnit(0);
-        shader_->setInt("uTexture", 0);
+        shader_->setInt(Contrato::Uniforme::kTexture, 0);
         return true;
     } catch (const std::exception& e) {
         texturasFallidas_.insert(path);
@@ -154,17 +156,17 @@ bool TilemapRenderer::dibujar(const TilemapDraw& draw) {
         enlazarTextura(draw.rutaTextura);
 
     shader_->use();
-    shader_->setMat4("uModel", glm::make_mat4(draw.model));
-    shader_->setMat4("uView", glm::make_mat4(draw.view));
-    shader_->setMat4("uProjection", glm::make_mat4(draw.projection));
+    shader_->setMat4(Contrato::Uniforme::kModel, glm::make_mat4(draw.model));
+    shader_->setMat4(Contrato::Uniforme::kView, glm::make_mat4(draw.view));
+    shader_->setMat4(Contrato::Uniforme::kProjection, glm::make_mat4(draw.projection));
 
     // La geometria del tilemap ya trae los UV horneados por vertice; el shader
     // de sprites los multiplica por uUvRect, asi que se fija la region completa.
     const float uvCompleto[4] = {0.0f, 0.0f, 1.0f, 1.0f};
     const float tinteBlanco[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-    shader_->setVec4("uUvRect", uvCompleto);
-    shader_->setVec4("uTint", draw.tint ? draw.tint : tinteBlanco);
-    shader_->setInt("uUseTexture", conTextura ? 1 : 0);
+    shader_->setVec4(Contrato::Uniforme::kUvRect, uvCompleto);
+    shader_->setVec4(Contrato::Uniforme::kTint, draw.tint ? draw.tint : tinteBlanco);
+    shader_->setInt(Contrato::Uniforme::kUseTexture, conTextura ? 1 : 0);
 
     auto& backend = Backend::activeBackend();
     backend.setBlendEnabled(true);

@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -1394,8 +1394,8 @@ void GameScene::gameScene() {
     const int fbH = static_cast<int>(io.DisplaySize.y);
     if (fbW <= 0 || fbH <= 0) return;
 
-    // Luces CPU de la pasada (misma semantica que GL_LIGHT0..7): la escena
-    // recoge y el SceneRenderer las aplica al backend y a los uniforms.
+    // Luces CPU de la pasada: la escena recoge los datos y el SceneRenderer
+    // los aplica a los uniforms del shader.
     LightData luces[LightSystem::kMaxLights];
     int numLuces = 0;
     lightSystem.collectLights(getGameObjectsScene(), luces, numLuces);

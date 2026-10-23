@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,7 +29,7 @@
 // Se cargan de un JSON compatible con el export JSON de Tiled (subset): campos
 // "image", "imagewidth", "imageheight", "tilewidth", "tileheight", "margin",
 // "spacing", "columns", "tilecount" y "tiles" (con "properties" donde el nombre
-// "solid" marca el tile como colisionable). El struct no depende de OpenGL: los
+// "solid" marca el tile como colisionable). El struct no depende de la pila grafica: los
 // tests headless lo construyen y lo verifican sin contexto grafico.
 struct Tileset {
     // Ruta de la imagen relativa al archivo del tileset (semantica de Tiled).

@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SceneRenderer.h"
+#include "ContratoRender.h"
 #include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <algorithm>
@@ -48,7 +49,6 @@
 #include "MeshRenderer.h"
 #include "RenderTarget.h"
 #include "Shaders/ShaderProgram.h"
-#include "Shaders/ShaderSources.h"
 
 #include "../Configuracion/Apariencia.h"
 #include "../Configuracion/EditorConfig.h"
@@ -313,7 +313,7 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
     if (!cieloProgram_ && !cieloShaderFallado_) {
         try {
             cieloProgram_ = std::make_unique<ShaderProgram>(
-                ShaderProgram::fromSource(kSkyVertexShader, kSkyFragmentShader));
+                ShaderProgram::create(Rendering::Contrato::ShaderKind::Cielo));
         } catch (const std::exception& e) {
             registrarExcepcionDiagnostica("Rendering/SceneRenderer", e,
                                           NivelDiagnostico::Error);
@@ -358,9 +358,9 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
     // Los set por nombre no buscan en GL mas alla del primer frame:
     // ShaderProgram cachea la location de cada uniform contra el backend.
     cieloProgram_->use();
-    cieloProgram_->setVec3("uColorTop",
+    cieloProgram_->setVec3(Rendering::Contrato::Uniforme::kColorTop,
                            glm::vec3(colorSup[0], colorSup[1], colorSup[2]));
-    cieloProgram_->setVec3("uColorBottom",
+    cieloProgram_->setVec3(Rendering::Contrato::Uniforme::kColorBottom,
                            glm::vec3(colorInf[0], colorInf[1], colorInf[2]));
 
     // El shader necesita deshacer projection*view para recuperar el rayo de
@@ -368,13 +368,13 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
     const glm::mat4 vista = glm::make_mat4(view);
     const glm::mat4 proyeccion = glm::make_mat4(projection);
     const glm::mat4 invViewProj = glm::inverse(proyeccion * vista);
-    cieloProgram_->setMat4("uInvViewProj", invViewProj);
-    cieloProgram_->setVec3("uCamPos", glm::vec3(camaraMundo[0], camaraMundo[1],
+    cieloProgram_->setMat4(Rendering::Contrato::Uniforme::kInvViewProj, invViewProj);
+    cieloProgram_->setVec3(Rendering::Contrato::Uniforme::kCamPos, glm::vec3(camaraMundo[0], camaraMundo[1],
                                                camaraMundo[2]));
     // Media anchura de la transicion en unidades de dir.y: 0.35 satura el
     // color a unos 20 grados por encima y por debajo del horizonte, que es lo
     // que hace legible la banda de degradado en el horizonte.
-    cieloProgram_->setFloat("uTransicion", kCieloTransicion);
+    cieloProgram_->setFloat(Rendering::Contrato::Uniforme::kTransicion, kCieloTransicion);
 
     // Fullscreen triangle: 3 vertices, sin VBO (gl_VertexID en el vertex shader).
     backend.drawFullscreenTriangle();
@@ -445,28 +445,9 @@ bool SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
 
     // Programa del cubemap (cubo centrado en la camara), creacion perezosa.
     if (!skyboxProgram_ && !skyboxShaderFallado_) {
-        static const char* skyboxVert = R"(#version 330 core
-layout(location = 0) in vec3 aPos;
-out vec3 vTexCoord;
-uniform mat4 uView;
-uniform mat4 uProjection;
-void main() {
-    vTexCoord = aPos;
-    vec4 pos = uProjection * uView * vec4(aPos, 1.0);
-    gl_Position = pos.xyww; // z = w para estar en el plano lejano
-}
-)";
-        static const char* skyboxFrag = R"(#version 330 core
-in vec3 vTexCoord;
-out vec4 FragColor;
-uniform samplerCube uSkybox;
-void main() {
-    FragColor = texture(uSkybox, vTexCoord);
-}
-)";
         try {
             skyboxProgram_ = std::make_unique<ShaderProgram>(
-                ShaderProgram::fromSource(skyboxVert, skyboxFrag));
+                ShaderProgram::create(Rendering::Contrato::ShaderKind::Cubemap));
         } catch (const std::exception& e) {
             registrarExcepcionDiagnostica("Rendering/SceneRenderer", e,
                                           NivelDiagnostico::Error);
@@ -542,9 +523,9 @@ void main() {
 
     // Las locations de los uniforms quedan cacheadas en ShaderProgram.
     skyboxProgram_->use();
-    skyboxProgram_->setMat4("uView", glm::make_mat4(vistaSinTraslacion));
-    skyboxProgram_->setMat4("uProjection", glm::make_mat4(projection));
-    skyboxProgram_->setInt("uSkybox", 0);
+    skyboxProgram_->setMat4(Rendering::Contrato::Uniforme::kView, glm::make_mat4(vistaSinTraslacion));
+    skyboxProgram_->setMat4(Rendering::Contrato::Uniforme::kProjection, glm::make_mat4(projection));
+    skyboxProgram_->setInt(Rendering::Contrato::Uniforme::kSkybox, 0);
 
     backend.bindTextureCube(skyboxCubemap_, 0);
     backend.drawMesh(skyboxCuboMalla_, 36);
@@ -1043,8 +1024,9 @@ void SceneRenderer::dibujarViewportsPrevios(const FrameContext& ctx) {
                 auto& backend = Rendering::Backend::activeBackend();
                 if (!backend.available()) continue;  // Guard: backend no disponible
                 backend.setViewport(0, 0, kPreviewW, kPreviewH);
-                // El FBO hereda el estado GL; se fija el fondo del perfil para
-                // que la vista previa use el mismo color que la pasada principal.
+                // El render target hereda el estado del backend; se fija el
+                // fondo del perfil para que la vista previa use el mismo color
+                // que la pasada principal.
                 float fondoPreview[3] = {0.f, 0.f, 0.f};
                 if (ctx.apariencia)
                     AparienciaUtil::fondoEfectivo(*ctx.apariencia, fondoPreview);
