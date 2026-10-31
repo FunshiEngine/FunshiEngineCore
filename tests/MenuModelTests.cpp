@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,7 @@
 #include <iostream>
 #include <string>
 
-#include "../FunshiEngineGL/src/GUI/MenusGUI/MenuModel.h"
+#include "../FunshiEngineC/src/GUI/MenusGUI/MenuModel.h"
 
 namespace {
 int total = 0;

@@ -6,12 +6,12 @@ licencias originales, que se resumen a continuación junto a su ubicación.
 
 | Componente | Ubicación | Licencia | Titular |
 |---|---|---|---|
-| Dear ImGui v1.92.2 | `FunshiEngineGL/src/ImGui/` | MIT | Copyright (c) 2014-2025 Omar Cornut |
-| ImGuizmo | `FunshiEngineGL/ImGuizmo/` | MIT (incluye `LICENSE` propio) | Copyright (c) 2016 Cedric Guillemet |
-| nlohmann/json v3.11.3 | `FunshiEngineGL/External/nlohmann/` | MIT (SPDX en `json.hpp`) | Copyright (c) 2013-2023 Niels Lohmann |
-| stb_image v2.16 | `FunshiEngineGL/src/Herramientas/IconosGUI/stb_image.h` | Dominio público (dual MIT) | Sean Barrett |
+| Dear ImGui v1.92.2 | `FunshiEngineC/src/ImGui/` | MIT | Copyright (c) 2014-2025 Omar Cornut |
+| ImGuizmo | `FunshiEngineC/ImGuizmo/` | MIT (incluye `LICENSE` propio) | Copyright (c) 2016 Cedric Guillemet |
+| nlohmann/json v3.11.3 | `FunshiEngineC/External/nlohmann/` | MIT (SPDX en `json.hpp`) | Copyright (c) 2013-2023 Niels Lohmann |
+| stb_image v2.16 | `FunshiEngineC/src/Herramientas/IconosGUI/stb_image.h` | Dominio público (dual MIT) | Sean Barrett |
 | OpenGL Mathematics (GLM) | Dependencia del sistema, con copia de respaldo si se detecta en el sistema | MIT / The Happy Bunny License | OpenGL Mathematics |
-| miniaudio | `FunshiEngineGL/src/Audio/miniaudio.h` | Dominio público (dual MIT-0 / MIT / CC0) | David Reid |
+| miniaudio | `FunshiEngineC/src/Audio/miniaudio.h` | Dominio público (dual MIT-0 / MIT / CC0) | David Reid |
 | Chromium Embedded Framework (CEF) 154 | Descarga en configure bajo el build dir (`cef/`), no versionada; runtime copiado junto al binario (`libcef.so`/`.dll`, `resources.pak`, `icudtl.dat`, `locales/`) | BSD-3-Clause | The Chromium Embedded Framework Authors |
 
 ## Textos de licencia
@@ -38,7 +38,7 @@ licencias originales, que se resumen a continuación junto a su ubicación.
 
 - **Dear ImGui**: aviso completo en la cabecera de `imgui.h` / `imgui.cpp`.
   Proyecto: https://github.com/ocornut/imgui
-- **ImGuizmo**: aviso completo en `FunshiEngineGL/ImGuizmo/LICENSE`.
+- **ImGuizmo**: aviso completo en `FunshiEngineC/ImGuizmo/LICENSE`.
   Proyecto: https://github.com/CedricGuillemet/ImGuizmo
 - **nlohmann/json**: cabecera *single-header* con `SPDX-License-Identifier: MIT` y
   `SPDX-FileCopyrightText: 2013-2023 Niels Lohmann`. Proyecto:
@@ -99,11 +99,11 @@ completo ~83 MB, `en-US.pak` 0.55 MB): set a empaquetar ~311 MB.
 
 ## Nota
 
-Las aportaciones al código propio de FunshiEngineGL se rigen por la Apache
+Las aportaciones al código propio de FunshiEngineC se rigen por la Apache
 License 2.0 (sección 5, "Submission of Contributions"). Si añades una nueva
 biblioteca de terceros, documenta aquí su licencia, titular y ubicación.
 
-Todos los archivos fuente propios (`.h`/`.cpp` bajo `FunshiEngineGL/src/` y
+Todos los archivos fuente propios (`.h`/`.cpp` bajo `FunshiEngineC/src/` y
 `tests/`) incluyen al comienzo el encabezado estándar Apache 2.0 con su
 etiqueta `SPDX-License-Identifier: Apache-2.0`. Al crear archivos nuevos,
 copia ese encabezado desde cualquier archivo existente. Los archivos de

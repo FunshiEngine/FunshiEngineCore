@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,12 +53,12 @@
 #include <vector>
 
 #include "TempPruebas.h"
-#include "../FunshiEngineGL/src/FileManager/FileManager.h"
-#include "../FunshiEngineGL/src/FileManager/FileSystemWatcher.h"
-#include "../FunshiEngineGL/src/GUI/FileManagerGUI/CrearCarpeta.h"
-#include "../FunshiEngineGL/src/GUI/FileManagerGUI/RenombrarElemento.h"
-#include "../FunshiEngineGL/src/GUI/FileManagerGUI/SoltarEnCarpeta.h"
-#include "../FunshiEngineGL/src/GUI/ObjetosGUI/Skybox/SelectorArchivoCubemap.h"
+#include "../FunshiEngineC/src/FileManager/FileManager.h"
+#include "../FunshiEngineC/src/FileManager/FileSystemWatcher.h"
+#include "../FunshiEngineC/src/GUI/FileManagerGUI/CrearCarpeta.h"
+#include "../FunshiEngineC/src/GUI/FileManagerGUI/RenombrarElemento.h"
+#include "../FunshiEngineC/src/GUI/FileManagerGUI/SoltarEnCarpeta.h"
+#include "../FunshiEngineC/src/GUI/ObjetosGUI/Skybox/SelectorArchivoCubemap.h"
 
 namespace fs = std::filesystem;
 

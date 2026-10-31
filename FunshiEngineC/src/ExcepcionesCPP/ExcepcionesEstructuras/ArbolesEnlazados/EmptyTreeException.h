@@ -1,0 +1,28 @@
+/*
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
+    Copyright 2026 Gianfranco Ivan Enrique
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+    SPDX-License-Identifier: Apache-2.0
+*/
+#ifndef EMPTYTREEEXCEPTION_H
+#define EMPTYTREEEXCEPTION_H
+using namespace std;
+#include "../../RuntimeException.h"
+class EmptyTreeException : public RuntimeException {
+
+public:
+	EmptyTreeException(string msg) : RuntimeException(msg + " Arbol Vacio", "EmptyTreeException") {}
+};
+#endif

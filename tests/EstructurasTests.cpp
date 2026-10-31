@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,13 +34,13 @@
 #include <string>
 #include <vector>
 
-#include "../FunshiEngineGL/src/Estructuras/ListasEnlazadas/ListasConPrioridad/PriorityListaDE.h"
-#include "../FunshiEngineGL/src/Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
-#include "../FunshiEngineGL/src/Estructuras/MetodosDeOrdenamiento/ListMergeSort.h"
-#include "../FunshiEngineGL/src/Estructuras/Trees/ArbolesEnlazados/ArbolBinarioEnlazado.h"
-#include "../FunshiEngineGL/src/Estructuras/Trees/ArbolesEnlazados/ArbolEnlazado.h"
-#include "../FunshiEngineGL/src/Estructuras/Trees/Heap/MaxHeap.h"
-#include "../FunshiEngineGL/src/Estructuras/Trees/Heap/MinHeap.h"
+#include "../FunshiEngineC/src/Estructuras/ListasEnlazadas/ListasConPrioridad/PriorityListaDE.h"
+#include "../FunshiEngineC/src/Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
+#include "../FunshiEngineC/src/Estructuras/MetodosDeOrdenamiento/ListMergeSort.h"
+#include "../FunshiEngineC/src/Estructuras/Trees/ArbolesEnlazados/ArbolBinarioEnlazado.h"
+#include "../FunshiEngineC/src/Estructuras/Trees/ArbolesEnlazados/ArbolEnlazado.h"
+#include "../FunshiEngineC/src/Estructuras/Trees/Heap/MaxHeap.h"
+#include "../FunshiEngineC/src/Estructuras/Trees/Heap/MinHeap.h"
 
 namespace {
 

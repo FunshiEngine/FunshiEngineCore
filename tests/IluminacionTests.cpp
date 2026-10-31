@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineC - Motor de juegos 3D con OpenGL e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,12 +33,12 @@
 #include <memory>
 #include <vector>
 
-#include "../FunshiEngineGL/src/Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
-#include "../FunshiEngineGL/src/Iluminacion/LightSystem.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Light.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
-#include "../FunshiEngineGL/src/Objetos/GameObject.h"
-#include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
+#include "../FunshiEngineC/src/Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
+#include "../FunshiEngineC/src/Iluminacion/LightSystem.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/Light.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/Transform.h"
+#include "../FunshiEngineC/src/Objetos/GameObject.h"
+#include "../FunshiEngineC/src/Objetos/GameObjectFactory.h"
 
 int total = 0;
 int fallos = 0;

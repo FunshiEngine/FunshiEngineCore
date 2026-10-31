@@ -1,0 +1,14 @@
+[Desktop Entry]
+# FunshiEngineC - lanzador de escritorio (Linux).
+# Copiar a ~/.local/share/applications/FunshiEngineC.desktop y ajustar las
+# rutas al lugar donde se instalo el motor. En un instalador IFW por defecto:
+#   Exec=/home/USUARIO/Desktop/FunshiEngineC/FunshiEngineC
+#   Icon=/home/USUARIO/Desktop/FunshiEngineC/Imagenes/logo_256.png
+Type=Application
+Name=FunshiEngineC
+Comment=Editor de escenas 3D de FunshiEngineC
+Exec=<RUTA_INSTALACION>/FunshiEngineC
+Icon=<RUTA_INSTALACION>/Imagenes/logo_256.png
+Terminal=false
+Categories=Development;Graphics;
+Keywords=3D;motor;editor;escenas;

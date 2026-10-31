@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +27,7 @@
 // marca aparece o vence un deadline, para que la suite nunca se cuelgue. Si
 // ConPTY no esta disponible el test sale con 77 (ctest lo reporta como skip).
 
-#include "../FunshiEngineGL/src/Terminal/TerminalSession.h"
+#include "../FunshiEngineC/src/Terminal/TerminalSession.h"
 
 #include "TempPruebas.h"
 

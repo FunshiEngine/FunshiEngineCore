@@ -7,11 +7,11 @@ Guía rápida para agentes (y humanos) que trabajen en este repositorio.
 ```bash
 # Configurar y compilar (CMake es el único build soportado; la solución de
 # Visual Studio la genera CMake dentro del directorio de build, no se versiona)
-cmake -S FunshiEngineGL -B FunshiEngineGL/build
-cmake --build FunshiEngineGL/build -j$(nproc)
+cmake -S FunshiEngineC -B FunshiEngineC/build
+cmake --build FunshiEngineC/build -j$(nproc)
 
 # Ejecutar la suite de tests (19 targets headless + scripts-java si hay JDK)
-cd FunshiEngineGL/build && ctest --output-on-failure
+cd FunshiEngineC/build && ctest --output-on-failure
 ```
 
 - **`cmake` sin `-DCMAKE_BUILD_TYPE` fuerza Debug** (`CMakeLists.txt`), y en
@@ -20,7 +20,7 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   build de trabajo normal y para igualar la CI:
 
   ```bash
-  cmake -S FunshiEngineGL -B FunshiEngineGL/build \
+  cmake -S FunshiEngineC -B FunshiEngineC/build \
       -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF -DFUNSHI_JAVA=ON
   ```
 
@@ -66,10 +66,10 @@ con suposiciones.
   El test queda además como regresión permanente de esa causa.
 - **Sondas y laboratorios en directorios locales ignorados por git**: los
   artefactos desechables de una depuración —sondas C++ que compilan y corren
-  sueltos (`FunshiEngineGL/sondas/*.cpp`), scripts de observación, volcados de
+  sueltos (`FunshiEngineC/sondas/*.cpp`), scripts de observación, volcados de
   log, copias locales de proyecto/escena usadas como laboratorio de
   experimentación— se viven en carpetas registradas en `.gitignore`
-  (`FunshiEngineGL/sondas/`, `vgcore.*`). Producen la evidencia del análisis y
+  (`FunshiEngineC/sondas/`, `vgcore.*`). Producen la evidencia del análisis y
   se quedan en local: no son código del motor ni del juego, no entran en
   commits y se retiran cuando el análisis cierra.
 - **Experimentos deterministas**: para que dos corridas sean comparables hay que
@@ -141,14 +141,14 @@ El criterio de aceptación de un fix lo define el usuario probando la app real
 poder lanzarla:
 
 ```bash
-cd FunshiEngineGL && ./build/FunshiEngineGL       # Linux
-cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
+cd FunshiEngineC && ./build/FunshiEngineC       # Linux
+cd FunshiEngineC && ./build/FunshiEngineC.exe   # Windows
 ```
 
-- Lanzarlo **desde `FunshiEngineGL/`**: los assets y las rutas relativas se
+- Lanzarlo **desde `FunshiEngineC/`**: los assets y las rutas relativas se
   resuelven contra el cwd.
 - La salida (stdout y stderr) se redirige a un archivo por arranque en
-  `logs/`, junto al ejecutable —`FunshiEngineGL_<AAAAMMDD_HHMMSS>.log`, con
+  `logs/`, junto al ejecutable —`FunshiEngineC_<AAAAMMDD_HHMMSS>.log`, con
   timestamp **UTC**—, así que el editor no abre consola. Es lo primero que hay
   que mirar cuando algo falla.
 

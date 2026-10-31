@@ -2,7 +2,7 @@
 
 ## 1. Descripción general
 
-`FunshiEngineGL` es un editor/motor gráfico 3D en C++17. El ejecutable combina:
+`FunshiEngineC` es un editor/motor gráfico 3D en C++17. El ejecutable combina:
 
 - Ventana y eventos mediante GLFW, sin contexto gráfico: la superficie la crea
   el backend de render que se instale.
@@ -31,12 +31,12 @@
   reload (`ScriptRuntime` + backends C++/Java) sobre `IScriptBehaviour`.
 - Estructuras de datos genéricas propias y jerarquía de excepciones.
 
-El punto de entrada del **editor** es `FunshiEngineGL/src/main.cpp`. El punto de
-entrada de los **juegos exportados** es `FunshiEngineGL/src/Runtime/main_juego.cpp`
+El punto de entrada del **editor** es `FunshiEngineC/src/main.cpp`. El punto de
+entrada de los **juegos exportados** es `FunshiEngineC/src/Runtime/main_juego.cpp`
 (sin código del editor: GUIManager, MenuGUI, paneles). La configuración de compilación
-está en `FunshiEngineGL/CMakeLists.txt`, que es el único build soportado: CMake
+está en `FunshiEngineC/CMakeLists.txt`, que es el único build soportado: CMake
 genera la solución de Visual Studio dentro del directorio de build que elijas
-(por ejemplo `FunshiEngineGL/build-win/FunshiEngineGL.sln`), así que no hay
+(por ejemplo `FunshiEngineC/build-win/FunshiEngineC.sln`), así que no hay
 proyectos de Visual Studio mantenidos a mano en el repositorio. Las pruebas
 headless viven en `tests/` y el CI en
 `.github/workflows/ci.yml`.
@@ -94,7 +94,7 @@ archivos temporales de editor (`*.swp`, `*.swo`) y el contenido interno de las
 dependencias de terceros.
 
 ```text
-FunshiEngineGL/                          ← raíz del repo
+FunshiEngineC/                          ← raíz del repo
 ├── README.md                            ← visión general, build, controles y pendientes
 ├── PROJECT_STRUCTURE.md                 ← este documento
 ├── MANUAL_DE_USO.md                     ← manual de usuario (editor + scripting C++/Java)
@@ -120,7 +120,7 @@ FunshiEngineGL/                          ← raíz del repo
 │   ├── AudioEngineTests.cpp             ← AudioEngine/AudioClipsManager con NullAudioBackend
 │   ├── SceneSerializationTests.cpp      ← round-trip de escena + nombres por defecto
 │   └── UserInterfaceTests.cpp           ← modelo del Creador de interfaces (round-trip JSON)
-└── FunshiEngineGL/                      ← proyecto CMake principal
+└── FunshiEngineC/                      ← proyecto CMake principal
     ├── CMakeLists.txt                   ← GLOB de fuentes, dependencias, sanitizers,
     │                                      pruebas (CTest), opción BUILD_ENGINE y la
     │                                      versión del producto (FUNSHI_VERSION, variable
@@ -893,7 +893,7 @@ el patrón Strategy + registro de los backends de audio y de scripts:
 | GLM | Matemáticas de Transform y cámaras (`GLM_ENABLE_EXPERIMENTAL`) | Usa `External/glm` si existe; si no, `find_package(glm)` del sistema |
 | nlohmann/json | `EditorConfig` (persistencia de configuración) | Vendoriado en `External/nlohmann` |
 | Dear ImGui | Interfaz del editor | Integrada en `src/ImGui/` |
-| ImGuizmo | Gizmos de transformación | Integrada en `FunshiEngineGL/ImGuizmo/` |
+| ImGuizmo | Gizmos de transformación | Integrada en `FunshiEngineC/ImGuizmo/` |
 | ncurses / X11 | Enlace en Linux | `find_package(Curses)` + X11/Xrandr/Xi |
 
 El motor no depende de ninguna API gráfica: el renderizado lo resuelve un
@@ -1195,11 +1195,11 @@ calcularla:
    `C:\Program Files` la carpeta es legible y aun así el proceso no puede crear
    nada dentro (la creó el instalador con los ACL de `Program Files`; el
    ejecutable no lleva manifiesto de elevación).
-3. Si no puede, cae a la carpeta de datos del usuario: `%APPDATA%\FunshiEngineGL`
-   en Windows, `$XDG_DATA_HOME/FunshiEngineGL` o `~/.local/share/FunshiEngineGL`
+3. Si no puede, cae a la carpeta de datos del usuario: `%APPDATA%\FunshiEngineC`
+   en Windows, `$XDG_DATA_HOME/FunshiEngineC` o `~/.local/share/FunshiEngineC`
    en Linux y macOS. El instalador de Windows es por usuario
    (`PrivilegesRequired=lowest`), así que en una instalación normal este punto
-   2 se cumple y la carpeta queda en `%LOCALAPPDATA%\Programs\FunshiEngineGL`:
+   2 se cumple y la carpeta queda en `%LOCALAPPDATA%\Programs\FunshiEngineC`:
    el paso 3 es la red que cubre una copia en `Program Files`, una carpeta en
    solo lectura o el motor lanzado como administrador.
 4. Si tampoco hay carpeta de usuario utilizable, conserva la ruta histórica: es

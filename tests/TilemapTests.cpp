@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,13 +35,13 @@
 #include <btBulletDynamicsCommon.h>
 
 #include "TempPruebas.h"
-#include "../FunshiEngineGL/src/Assets/Mesh.h"
-#include "../FunshiEngineGL/src/Assets/Tileset.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/TilemapCollider.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Tilemap.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
-#include "../FunshiEngineGL/src/Objetos/GameObject.h"
-#include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
+#include "../FunshiEngineC/src/Assets/Mesh.h"
+#include "../FunshiEngineC/src/Assets/Tileset.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/Colliders/TilemapCollider.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/Tilemap.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/Transform.h"
+#include "../FunshiEngineC/src/Objetos/GameObject.h"
+#include "../FunshiEngineC/src/Objetos/GameObjectFactory.h"
 
 int total = 0;
 int fallos = 0;

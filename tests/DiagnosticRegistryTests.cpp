@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,8 +23,8 @@
 #include <vector>
 
 #include "TempPruebas.h"
-#include "../FunshiEngineGL/src/Diagnosticos/RegistroDiagnosticos.h"
-#include "../FunshiEngineGL/src/ExcepcionesCPP/RuntimeException.h"
+#include "../FunshiEngineC/src/Diagnosticos/RegistroDiagnosticos.h"
+#include "../FunshiEngineC/src/ExcepcionesCPP/RuntimeException.h"
 
 namespace fs = std::filesystem;
 

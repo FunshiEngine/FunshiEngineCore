@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,16 +34,16 @@
 #include <memory>
 #include <string>
 
-#include "../FunshiEngineGL/src/Objetos/Componentes/Animador2D.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/CatalogoComponentes.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/CameraComponent.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/EsfereCollider.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/ComponentFactory.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/RigidBody/RigidBody.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/SpriteRenderer.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
-#include "../FunshiEngineGL/src/Objetos/GameObject.h"
-#include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/Animador2D.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/CatalogoComponentes.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/CameraComponent.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/Colliders/EsfereCollider.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/ComponentFactory.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/RigidBody/RigidBody.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/SpriteRenderer.h"
+#include "../FunshiEngineC/src/Objetos/Componentes/Transform.h"
+#include "../FunshiEngineC/src/Objetos/GameObject.h"
+#include "../FunshiEngineC/src/Objetos/GameObjectFactory.h"
 
 int total = 0;
 int fallos = 0;

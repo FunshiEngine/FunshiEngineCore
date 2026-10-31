@@ -333,7 +333,7 @@ gameScene()                                   (cada frame)
 AddressSanitizer + UBSan por defecto — así se atrapó el overflow de §6.2.
 
 ```bash
-cmake --build build --target FunshiEngineGL -j4
+cmake --build build --target FunshiEngineC -j4
 ```
 
 > Nota histórica: para reproducir estos bugs se usó temporalmente una
@@ -349,7 +349,7 @@ cmake --build build --target FunshiEngineGL -j4
 | Archivo | Cambio |
 |---|---|
 | `src/Rendering/RenderTarget.h` / `.cpp` | **Nuevos.** FBO render-to-texture con punteros `glfwGetProcAddress`. |
-| `FunshiEngineGL/FunshiEngineGL.vcxproj` / `.filters` | **Eliminado.** Arrastraba rutas absolutas de otra máquina (`glad.c` en una carpeta de descargas) y CMake ya genera los proyectos de Visual Studio: el `.sln` del build alcanza. |
+| `FunshiEngineC/FunshiEngineC.vcxproj` / `.filters` | **Eliminado.** Arrastraba rutas absolutas de otra máquina (`glad.c` en una carpeta de descargas) y CMake ya genera los proyectos de Visual Studio: el `.sln` del build alcanza. |
 | `src/Objetos/Componentes/CameraComponent.h` / `.cpp` | Cámara como componente + flag `pintar`. |
 | `src/GUI/ObjetosGUI/Camera/SettingsCamera.h` / `.cpp` (y registro en GUI) | Inspecta `CameraComponent`, expone FOV / planos / speed y el checkbox de vista previa. |
 | `src/Objetos/Componentes/ComponentFactory.cpp` | Acepta `"CameraComponent"` (fix §6.1). |

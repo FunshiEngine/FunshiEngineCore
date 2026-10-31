@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineC - Motor de juegos 3D con OpenGL e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,9 +46,9 @@
 #include <vector>
 
 #include "TempPruebas.h"
-#include "../FunshiEngineGL/src/FileManager/FileManager.h"
-#include "../FunshiEngineGL/src/FileManager/PortapapelesParsers.h"
-#include "../FunshiEngineGL/src/GUI/FileManagerGUI/ImportarArchivos.h"
+#include "../FunshiEngineC/src/FileManager/FileManager.h"
+#include "../FunshiEngineC/src/FileManager/PortapapelesParsers.h"
+#include "../FunshiEngineC/src/GUI/FileManagerGUI/ImportarArchivos.h"
 
 namespace fs = std::filesystem;
 

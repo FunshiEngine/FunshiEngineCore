@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineC - Motor de juegos 3D con OpenGL e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,10 +35,10 @@
 #include <string>
 #include <vector>
 
-#include "../FunshiEngineGL/src/Rendering/Backend/IRenderBackend.h"
-#include "../FunshiEngineGL/src/Rendering/Shaders/GestorShaders.h"
-#include "../FunshiEngineGL/src/Rendering/Shaders/PreprocesadorShaders.h"
-#include "../FunshiEngineGL/src/Rendering/Shaders/ShaderException.h"
+#include "../FunshiEngineC/src/Rendering/Backend/IRenderBackend.h"
+#include "../FunshiEngineC/src/Rendering/Shaders/GestorShaders.h"
+#include "../FunshiEngineC/src/Rendering/Shaders/PreprocesadorShaders.h"
+#include "../FunshiEngineC/src/Rendering/Shaders/ShaderException.h"
 
 using Rendering::Backend::BlendMode;
 using Rendering::Backend::DepthFunc;

@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,10 +30,10 @@
 #include <chrono>
 
 #include "TempPruebas.h"
-#include "../FunshiEngineGL/src/Behaviour/Backends/BackendJava.h"
-#include "../FunshiEngineGL/src/Behaviour/Backends/SondeoToolchain.h"
-#include "../FunshiEngineGL/src/Behaviour/Reflection/BehaviourReflection.h"
-#include "../FunshiEngineGL/src/Behaviour/ScriptRuntime.h"
+#include "../FunshiEngineC/src/Behaviour/Backends/BackendJava.h"
+#include "../FunshiEngineC/src/Behaviour/Backends/SondeoToolchain.h"
+#include "../FunshiEngineC/src/Behaviour/Reflection/BehaviourReflection.h"
+#include "../FunshiEngineC/src/Behaviour/ScriptRuntime.h"
 
 using namespace ReflejoScripts;
 namespace fs = std::filesystem;

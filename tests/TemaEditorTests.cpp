@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,8 +32,8 @@
 #include <cmath>
 #include <iostream>
 
-#include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
-#include "../FunshiEngineGL/src/GUI/Tema/TemaEditor.h"
+#include "../FunshiEngineC/src/Configuracion/Apariencia.h"
+#include "../FunshiEngineC/src/GUI/Tema/TemaEditor.h"
 
 namespace {
 int total = 0;

@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,10 +53,10 @@
 
 #include <glm/glm.hpp>
 
-#include "../FunshiEngineGL/src/Rendering/Backend/BackendNulo.h"
-#include "../FunshiEngineGL/src/Rendering/Backend/IRenderBackend.h"
-#include "../FunshiEngineGL/src/Rendering/ContratoRender.h"
-#include "../FunshiEngineGL/src/Rendering/Shaders/ShaderProgram.h"
+#include "../FunshiEngineC/src/Rendering/Backend/BackendNulo.h"
+#include "../FunshiEngineC/src/Rendering/Backend/IRenderBackend.h"
+#include "../FunshiEngineC/src/Rendering/ContratoRender.h"
+#include "../FunshiEngineC/src/Rendering/Shaders/ShaderProgram.h"
 
 namespace {
 int total = 0;
@@ -353,7 +353,7 @@ std::string leerArchivo(const std::filesystem::path& ruta) {
 
 void testRenderersUsanElContrato() {
     const std::filesystem::path dirRenderers =
-        raizDeFuentes() / "FunshiEngineGL" / "src" / "Rendering";
+        raizDeFuentes() / "FunshiEngineC" / "src" / "Rendering";
     CHECK(std::filesystem::exists(dirRenderers),
           "se encuentra el arbol de fuentes del motor");
 

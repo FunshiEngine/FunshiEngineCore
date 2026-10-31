@@ -137,7 +137,7 @@ Windows combinado con un instalador que corre elevado y un ejecutable que no.
 
 El motor guardaba **todos** sus datos de usuario (proyectos, escenas,
 configuraciones, `imgui.ini`) en `<directorioEjecutable>/MotorGrafico`. Con el
-instalador de Windows eso resuelve a `C:\Program Files\FunshiEngineGL\MotorGrafico`,
+instalador de Windows eso resuelve a `C:\Program Files\FunshiEngineC\MotorGrafico`,
 donde el proceso **no puede escribir**.
 
 ### 6.2 Síntomas
@@ -384,7 +384,7 @@ responde `ERROR_INVALID_PARAMETER` (87).
 ### 8.3 Causa raíz
 
 La bandera falta en la llamada. Diagnóstico por reducción (sonda
-`FunshiEngineGL/sondas/sonda_bloque.cpp`): bloque vacío ✓ / `A` con
+`FunshiEngineC/sondas/sonda_bloque.cpp`): bloque vacío ✓ / `A` con
 bloque ✓ / sin bloque ✓ / `.NET` ✓ / copia literal ✗ / userenv ✗ /
 cualquier mapa ✗ → el único diferenciador era `dwCreationFlags=0`.
 
@@ -858,7 +858,7 @@ ImGui/GL. Los mismos cuatro puntos van en `main.cpp` (editor) y
 |---|-----------|-----------|-------------|--------------|--------|
 | 1 | `main.cpp::EjecutarMotor`, `main_juego.cpp::EjecutarJuego` | Arranque del editor y del juego exportado con backend CEF | CEF 154 multiproceso | Los cuatro puntos de §13.4 bajo `FUNSHI_CEF`, con fallback al backend nulo | `feat(webui): backend CEF off-screen, recarga en caliente y preview de interfaz` |
 
-Evidencia de la sonda previa (`FunshiEngineGL/sondas/cef_probe/`, local): con
+Evidencia de la sonda previa (`FunshiEngineC/sondas/cef_probe/`, local): con
 `CefExecuteProcess` al inicio de `main`, los roles `--type=gpu-process`,
 `--type=renderer`, `--type=utility` y `--type=zygote` se relanzaron sobre el
 mismo binario y la app principal siguió; `OnPaint` pintó el DOM con CSS/JS

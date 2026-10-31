@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineC - Motor de juegos 3D con OpenGL e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,8 +35,8 @@
 #include <iostream>
 #include <string>
 
-#include "../FunshiEngineGL/src/Assets/AssimpMeshLoader.h"
-#include "../FunshiEngineGL/src/Assets/Mesh.h"
+#include "../FunshiEngineC/src/Assets/AssimpMeshLoader.h"
+#include "../FunshiEngineC/src/Assets/Mesh.h"
 #include "../tests/TempPruebas.h"
 
 int total = 0;

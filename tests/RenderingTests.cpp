@@ -1,5 +1,5 @@
 ﻿/*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,13 +25,13 @@
 #include <iostream>
 #include <string>
 
-#include "../FunshiEngineGL/src/Assets/Primitivas2D.h"
-#include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
-#include "../FunshiEngineGL/src/Rendering/CacheCubemap.h"
-#include "../FunshiEngineGL/src/Rendering/Cielo.h"
-#include "../FunshiEngineGL/src/Rendering/Difuminado.h"
-#include "../FunshiEngineGL/src/Rendering/GuiaEje.h"
-#include "../FunshiEngineGL/src/Rendering/LineBuilder.h"
+#include "../FunshiEngineC/src/Assets/Primitivas2D.h"
+#include "../FunshiEngineC/src/Configuracion/Apariencia.h"
+#include "../FunshiEngineC/src/Rendering/CacheCubemap.h"
+#include "../FunshiEngineC/src/Rendering/Cielo.h"
+#include "../FunshiEngineC/src/Rendering/Difuminado.h"
+#include "../FunshiEngineC/src/Rendering/GuiaEje.h"
+#include "../FunshiEngineC/src/Rendering/LineBuilder.h"
 
 namespace {
 

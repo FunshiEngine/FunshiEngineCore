@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,10 +25,10 @@
 #include <memory>
 #include <string>
 
-#include "../FunshiEngineGL/src/Assets/AssetException.h"
-#include "../FunshiEngineGL/src/Assets/AssetManager.h"
-#include "../FunshiEngineGL/src/Assets/AssetPath.h"
-#include "../FunshiEngineGL/src/Assets/Mesh.h"
+#include "../FunshiEngineC/src/Assets/AssetException.h"
+#include "../FunshiEngineC/src/Assets/AssetManager.h"
+#include "../FunshiEngineC/src/Assets/AssetPath.h"
+#include "../FunshiEngineC/src/Assets/Mesh.h"
 
 #include <cmath>
 

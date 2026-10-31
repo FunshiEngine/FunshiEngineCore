@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con OpenGL e ImGui
+    FunshiEngineC - Motor de juegos 3D con OpenGL e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,9 +40,9 @@
 #include <iostream>
 #include <string>
 
-#include "../FunshiEngineGL/src/GUI/Estado/EstadoInterfazImGui.h"
-#include "../FunshiEngineGL/src/GUI/Navegacion/SidebarOrbitaGUI.h"
-#include "../FunshiEngineGL/src/Scenes/OperacionGizmo.h"
+#include "../FunshiEngineC/src/GUI/Estado/EstadoInterfazImGui.h"
+#include "../FunshiEngineC/src/GUI/Navegacion/SidebarOrbitaGUI.h"
+#include "../FunshiEngineC/src/Scenes/OperacionGizmo.h"
 
 #include "ImGuizmo.h"
 

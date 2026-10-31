@@ -1,5 +1,5 @@
 /*
-    FunshiEngineGL - Motor de juegos 3D con API grafica intercambiable e ImGui
+    FunshiEngineC - Motor de juegos 3D con API grafica intercambiable e ImGui
     Copyright 2026 Gianfranco Ivan Enrique
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,12 +37,12 @@
 #include <vector>
 
 #include "TempPruebas.h"
-#include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
-#include "../FunshiEngineGL/src/Configuracion/ProjectPaths.h"
-#include "../FunshiEngineGL/src/Exportador/RutasExportacion.h"
-#include "../FunshiEngineGL/src/Configuracion/ProyectoInicial.h"
-#include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
-#include "../FunshiEngineGL/src/Configuracion/RutasLog.h"
+#include "../FunshiEngineC/src/Configuracion/EditorConfig.h"
+#include "../FunshiEngineC/src/Configuracion/ProjectPaths.h"
+#include "../FunshiEngineC/src/Exportador/RutasExportacion.h"
+#include "../FunshiEngineC/src/Configuracion/ProyectoInicial.h"
+#include "../FunshiEngineC/src/Configuracion/Apariencia.h"
+#include "../FunshiEngineC/src/Configuracion/RutasLog.h"
 
 namespace fs = std::filesystem;
 
@@ -1023,8 +1023,8 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
     //    la temporal del sistema es el ultimo recurso. Sin esto, instalado en
     //    Program Files el motor se queda sin log ni consola que lo muestre.
     {
-        const std::string exe = "/opt/FunshiEngineGL";
-        const std::string datosUsuario = "/home/usuario/.local/share/FunshiEngineGL/MotorGrafico";
+        const std::string exe = "/opt/FunshiEngineC";
+        const std::string datosUsuario = "/home/usuario/.local/share/FunshiEngineC/MotorGrafico";
         const std::string temp = "/tmp";
 
         const std::vector<std::string> rutas = RutasLog::candidatas(
@@ -1033,7 +1033,7 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         CHECK(rutas[0] == (fs::path(datosUsuario) / "logs").string(),
               "la primera candidata es la raiz de datos");
         CHECK(rutas[1] == (fs::path(exe) / "logs").string(), "la segunda, la carpeta del ejecutable");
-        CHECK(rutas[2] == (fs::path(temp) / "FunshiEngineGL" / "logs").string(),
+        CHECK(rutas[2] == (fs::path(temp) / "FunshiEngineC" / "logs").string(),
               "la tercera, la temporal del motor");
 
         // Sin raiz de datos no se pierde la carpeta del ejecutable.
@@ -1050,7 +1050,7 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         const std::vector<std::string> repetidas =
             RutasLog::candidatas(exe, exe, temp);
         CHECK(repetidas.size() == 2 && repetidas[0] == (fs::path(exe) / "logs").string() &&
-                  repetidas[1] == (fs::path(temp) / "FunshiEngineGL" / "logs").string(),
+                  repetidas[1] == (fs::path(temp) / "FunshiEngineC" / "logs").string(),
               "una ruta repetida no se prueba dos veces");
     }
 
