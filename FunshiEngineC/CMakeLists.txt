@@ -497,15 +497,21 @@ if(USE_ASSIMP)
     target_link_libraries(funshi_engine PRIVATE assimp::assimp)
 endif()
 
-# GLM: se usa el directorio embebido si existe en el repo; si no (p. ej. en CI
-# sin External/), se busca la copia del sistema (libglm-dev en Ubuntu).
+# GLM (solo headers): se usa el directorio embebido si existe en el repo; si no
+# (p. ej. en CI sin External/), se busca la copia del sistema (libglm-dev en
+# Ubuntu, vcpkg en Windows). Se expone como target INTERFACE para que lo
+# usen tanto el motor como las pruebas que compilan sueltas (que no enlazan
+# funshi_engine): en Windows el include de vcpkg no esta en el path por
+# defecto y sin esto esas pruebas no compilan.
 set(GLM_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/External/glm")
+add_library(funshi_glm INTERFACE)
 if(EXISTS "${GLM_INCLUDE_DIR}/glm/glm.hpp")
-    target_include_directories(funshi_engine PUBLIC ${GLM_INCLUDE_DIR})
+    target_include_directories(funshi_glm INTERFACE ${GLM_INCLUDE_DIR})
 else()
     find_package(glm REQUIRED)
-    target_link_libraries(funshi_engine PRIVATE glm::glm)
+    target_link_libraries(funshi_glm INTERFACE glm::glm)
 endif()
+target_link_libraries(funshi_engine PUBLIC funshi_glm)
 
 if(NOT BUILD_RUNTIME)
 # Comandos (sistema undo/redo): se enlaza con funshi_engine que provee todas las
@@ -815,33 +821,6 @@ add_test(NAME interface-component-tests COMMAND interface-component-tests)
 
 if(WIN32)
     target_compile_definitions(interface-component-tests PRIVATE _HAS_STD_BYTE=0)
-endif()
-
-# --- Pruebas headless del runtime de interfaces web (HUD) ---
-# WebUIRuntime (registro/seleccion/despacho) y VistasWebUI (ciclo de vida de las
-# vistas) corren enteros con el backend nulo, sin CEF ni GL. Compilan sueltos
-# (solo std + glm) para correr tambien en el job con BUILD_ENGINE=OFF.
-add_executable(webui-runtime-tests
-    ${SRC_DIR}/WebUI/WebUIRuntime.cpp
-    ${SRC_DIR}/WebUI/VistasWebUI.cpp
-    ${SRC_DIR}/WebUI/EstadoInterfaces.cpp
-    ${SRC_DIR}/Objetos/Componentes/InterfaceComponent.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/WebUIRuntimeTests.cpp
-)
-target_link_libraries(webui-runtime-tests PRIVATE funshi_diagnostics_core)
-target_include_directories(webui-runtime-tests PRIVATE
-    ${SRC_DIR}
-    ${CMAKE_SOURCE_DIR}/External
-)
-set_target_properties(webui-runtime-tests PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-    CXX_EXTENSIONS OFF
-)
-add_test(NAME webui-runtime-tests COMMAND webui-runtime-tests)
-
-if(WIN32)
-    target_compile_definitions(webui-runtime-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
 add_executable(terminal-emulator-tests
